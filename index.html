@@ -96,7 +96,17 @@
     <div>
         <textarea id="inputText" placeholder="ここに入力 (例: SOS)"></textarea>
         <br>
-        <button id="btnSend">送信（音+光）</button>
+        <div style="display: flex; align-items: center; gap: 24px; margin-bottom: 8px;">
+             <label style="font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="sendAudioToggle" checked style="transform: scale(1.5); cursor: pointer;">
+                音を鳴らす
+            </label>
+            <label style="font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="sendFlashToggle" checked style="transform: scale(1.5); cursor: pointer;">
+                画面を光らせる
+            </label>
+        </div>
+        <button id="btnSend">送信</button>
         <button id="btnVoiceInput">🎤 音声入力</button>
         
         <div class="controls" style="margin-top: 10px;">
@@ -109,7 +119,7 @@
             <summary style="cursor: pointer; outline: none; color: #aaa;">詳細設定 (送信パラメータ)</summary>
             <div style="margin-top: 10px; padding-left: 10px;">
                 
-                <label>通信速度 (短点の長さ ms)</label>
+                <label>信号の速度 (短点の長さ ms)</label>
                 <div style="display: flex; align-items: center;">
                     <input type="range" id="speedRange" min="40" max="300" step="10" value="100" style="flex: 1;">
                     <span id="speedVal" style="width: 40px; text-align: right;">100</span>
@@ -117,9 +127,17 @@
                 
                 <br>
 
+                <label>文字間の空白時間 (ms)</label>
+                <div style="display: flex; align-items: center;">
+                    <input type="range" id="charSpaceRange" min="100" max="2000" step="10" value="300" style="flex: 1;">
+                    <span id="charSpaceVal" style="width: 40px; text-align: right;">300</span>
+                </div>
+
+                <br>
+
                 <label>音の高さ (Hz)</label>
                 <div style="display: flex; align-items: center;">
-                    <input type="range" id="freqRange" min="200" max="1200" step="50" value="600" style="flex: 1;">
+                    <input type="range" id="freqRange" min="200" max="1200" value="600" style="flex: 1;">
                     <span id="freqVal" style="width: 40px; text-align: right;">600</span>
                 </div>
 
@@ -142,7 +160,12 @@
     <div>
         <button id="btnListen">受信開始（マイクON）</button>
         <div class="controls">
-            <label>マイク感度調整（しきい値）</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <label>マイク感度調整（しきい値）</label>
+                <label style="font-size: 1rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="autoThresholdToggle" style="width: 18px; height: 18px; transform: scale(1.5); cursor: pointer;"> 自動設定
+                </label>
+            </div>
             <input title="thresholdRange" type="range" id="thresholdRange" min="0" max="100" value="40">
             <span id="thresholdVal">40</span>
         </div>
@@ -241,11 +264,12 @@
             }
             // プレースホルダー変更
             document.getElementById('inputText').placeholder = 
-                (currentMode === 'JA') ? "ここに入力 (例: ヤマダ タロウ)" : "ここに入力 (例: SOS)";
+                (currentMode === 'JA') ? "ここに入力 (例: タスケテ)" : "ここに入力 (例: SOS)";
         });
     });
 
     let dotTimeMs = 100; // 短点の長さ(ms) - 初期値
+    let charSpacingMs = 300; // 文字間の空白 - 初期値
     let audioCtx = null;
 
     // 音量スライダー
@@ -258,13 +282,21 @@
     // 送信設定 (速度・周波数・音色)
     const speedSlider = document.getElementById('speedRange');
     const speedDisp = document.getElementById('speedVal');
+    const charSpaceSlider = document.getElementById('charSpaceRange');
+    const charSpaceDisp = document.getElementById('charSpaceVal');
     const freqSlider = document.getElementById('freqRange');
     const freqDisp = document.getElementById('freqVal');
     const waveSelect = document.getElementById('waveType');
+    const sendAudioToggle = document.getElementById('sendAudioToggle');
+    const sendFlashToggle = document.getElementById('sendFlashToggle');
 
     speedSlider.addEventListener('input', (e) => {
         dotTimeMs = parseInt(e.target.value);
         speedDisp.textContent = dotTimeMs;
+    });
+    charSpaceSlider.addEventListener('input', (e) => {
+        charSpacingMs = parseInt(e.target.value);
+        charSpaceDisp.textContent = charSpacingMs;
     });
     freqSlider.addEventListener('input', (e) => {
         freqDisp.textContent = e.target.value;
@@ -272,30 +304,43 @@
 
     // --- 2. 送信機能 (Output) ---
     async function playTone(duration) {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        
-        const vol = parseInt(volumeSlider.value) / 100; 
-        const freq = parseInt(freqSlider.value);
-        const type = waveSelect.value;
+        let osc = null; // スコープ外で参照するため
 
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-        
-        // 音量適用
-        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
-        
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        
-        osc.start();
-        document.body.classList.add('flashing');
+        // 「音を鳴らす」がONなら音を準備
+        if (sendAudioToggle.checked) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            const vol = parseInt(volumeSlider.value) / 100; 
+            const freq = parseInt(freqSlider.value);
+            const type = waveSelect.value;
 
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+        }
+
+        // 「画面を光らせる」がONなら光らせる
+        if (sendFlashToggle.checked) {
+            document.body.classList.add('flashing');
+        }
+
+        // 信号の長さに応じて待機 (音や光がOFFでも時間は経過する)
         await new Promise(r => setTimeout(r, duration));
 
-        osc.stop();
-        document.body.classList.remove('flashing');
+        // 開始したものがあれば停止する
+        if (osc) {
+            osc.stop();
+        }
+        if (sendFlashToggle.checked) {
+            document.body.classList.remove('flashing');
+        }
     }
 
     async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -331,12 +376,13 @@
                     } else if (signal === '-') {
                         await playTone(dotTimeMs * 3);
                     }
-                    await sleep(dotTimeMs);
+                    await sleep(dotTimeMs); // 信号間の休止
                 }
             } else if (char === ' ' || char === '/' || char === '　') {
-                await sleep(dotTimeMs * 3);
+                // 単語間の休止は、文字間休止の2倍程度とする
+                await sleep(charSpacingMs * 2);
             }
-            await sleep(dotTimeMs * 3); // 文字間
+            await sleep(charSpacingMs); // 文字間
         }
         document.getElementById('btnSend').disabled = false;
     });
@@ -419,6 +465,9 @@
             dataArray = new Uint8Array(analyser.frequencyBinCount);
             isListening = true;
             
+            // 無音タイマーの初期化 (これをしないと最初の一音目で必ず / が入る)
+            silenceStartTime = Date.now(); 
+
             const btn = document.getElementById('btnListen');
             btn.textContent = "受信停止";
             btn.disabled = false;
@@ -432,14 +481,15 @@
     });
 
     // --- 詳細設定の制御 ---
-    let dotThresholdTime = 200; // 短点か長点かの境目 (ms)
-    let charGapTime = 300;      // 文字区切りとみなす無音時間 (ms)
-    let wordGapTime = 600;      // 単語区切り (スペース) とみなす時間 (ms) - charGapTimeの2倍程度を目安に自動連動させてもよい
+    let dotThresholdTime = 200; 
+    let charGapTime = 300;      
+    let wordGapTime = 600;      
 
     const dotSlider = document.getElementById('dotDurationRange');
     const dotVal = document.getElementById('dotDurationVal');
     const charGapSlider = document.getElementById('charGapRange');
     const charGapVal = document.getElementById('charGapVal');
+    const autoThreshToggle = document.getElementById('autoThresholdToggle');
 
     dotSlider.addEventListener('input', (e) => {
         dotThresholdTime = parseInt(e.target.value);
@@ -448,14 +498,28 @@
 
     charGapSlider.addEventListener('input', (e) => {
         charGapTime = parseInt(e.target.value);
-        wordGapTime = charGapTime * 2.5; // 単語区切りは文字区切りの2.5倍くらいにしておく
+        wordGapTime = charGapTime * 2.5; 
         charGapVal.textContent = charGapTime;
     });
+    
+    // 自動設定の切り替え
+    autoThreshToggle.addEventListener('change', (e) => {
+        const isAuto = e.target.checked;
+        thresholdSlider.disabled = isAuto;
+        if(isAuto) {
+            thresholdSlider.style.opacity = "0.5";
+        } else {
+            thresholdSlider.style.opacity = "1.0";
+        }
+    });
 
-    let signalState = false; // 音が鳴っているか
+    let signalState = false; 
     let signalStartTime = 0;
     let silenceStartTime = 0;
     let currentMorseChar = "";
+    
+    // 自動しきい値用変数
+    let estimatedNoise = 0;
 
     function visualize() {
         if(!isListening) return;
@@ -463,12 +527,44 @@
         
         analyser.getByteFrequencyData(dataArray);
         
-        // 音量の平均を計算
         let sum = 0;
         for(let i = 0; i < dataArray.length; i++) sum += dataArray[i];
         let average = sum / dataArray.length;
         // 感度調整用ブースト
         let displayVol = average * 3; 
+
+        // --- 自動しきい値調整ロジック (AGC簡易版) ---
+        if (autoThreshToggle.checked) {
+            // ノイズレベルの追従
+            // 現在の音量が推定ノイズより低い -> ノイズレベルを下げる (速く追従)
+            if (displayVol < estimatedNoise) {
+                estimatedNoise = estimatedNoise * 0.9 + displayVol * 0.1;
+            } 
+            // 現在の音量が推定ノイズより高い -> ノイズレベルを上げる (ゆっくり追従: 信号かもしれないので)
+            else {
+                estimatedNoise = estimatedNoise * 0.995 + displayVol * 0.005;
+            }
+            
+            // しきい値の決定: ノイズ + マージン(例えば30)
+            // ただし displayVol が 0-765 (255*3) の範囲であることに注意
+            // 内部しきい値は 0-255 の範囲なので調整
+            
+            // displayVol は平均*3なので結構大きい。
+            // 内部計算用のしきい値ターゲット
+            let targetThreshold = estimatedNoise + 40; 
+            
+            // 255を超えないようにクリップ
+            if(targetThreshold > 255) targetThreshold = 255;
+            
+            // スライダー(0-100)に反映させるために変換
+            // 内部値(0-255) -> スライダー値(0-100)
+            let sliderVal = Math.floor(targetThreshold / 2.55);
+            if(sliderVal < 0) sliderVal = 0;
+            if(sliderVal > 100) sliderVal = 100;
+            
+            thresholdSlider.value = sliderVal;
+            thresholdDisp.textContent = sliderVal;
+        }
 
         ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -494,32 +590,37 @@
         const isLoud = displayVol > threshold;
 
         if (isLoud && !signalState) {
-            // 音が鳴り始めた
+            // 音が鳴り始めた (Silence -> Signal)
             signalState = true;
             signalStartTime = now;
-            // 無音期間が長かったら、前の文字を確定させるなどの処理が必要
-            if (now - silenceStartTime > wordGapTime) { // 設定値連動
-                 // 単語区切り (スペース)
+            
+            // 無音期間がかなり長かったらスペースを入れる
+            // (文字の確定は下の「無音継続中」処理ですでに行われているはずだが、念のため)
+            if (now - silenceStartTime > wordGapTime) { 
                  updateOutput(" / ");
-                 currentMorseChar = "";
-            } else if (now - silenceStartTime > charGapTime) { // 設定値連動
-                 // 文字区切り
-                 if(currentMorseChar) interpretMorse(currentMorseChar);
+                 // 万が一残っていたらクリア
                  currentMorseChar = "";
             }
         } else if (!isLoud && signalState) {
-            // 音が止まった
+            // 音が止まった (Signal -> Silence)
             signalState = false;
             const duration = now - signalStartTime;
             silenceStartTime = now;
             
-            // 短点か長点か判定 (設定値連動)
+            // 短点か長点か判定
             if (duration < dotThresholdTime) { 
                 currentMorseChar += ".";
                 document.getElementById('debugSignal').textContent += ".";
             } else {
                 currentMorseChar += "-";
                 document.getElementById('debugSignal').textContent += "-";
+            }
+        } else if (!isLoud && !signalState) {
+            // 無音が続いている (Silence...)
+            // まだ確定していない符号があり、かつ 文字区切り時間を超えて無音なら確定する
+            if (currentMorseChar.length > 0 && (now - silenceStartTime > charGapTime)) {
+                interpretMorse(currentMorseChar);
+                currentMorseChar = ""; // バッファをクリア
             }
         }
     }
