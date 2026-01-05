@@ -303,6 +303,8 @@
     });
 
     // --- 2. 送信機能 (Output) ---
+    let isSending = false; // 送信中フラグ
+
     async function playTone(duration) {
         let osc = null; // スコープ外で参照するため
 
@@ -346,45 +348,79 @@
     async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
     document.getElementById('btnSend').addEventListener('click', async () => {
+        const btnSend = document.getElementById('btnSend');
+        const btnVoiceInput = document.getElementById('btnVoiceInput');
+
+        // 送信中にクリックされたら停止
+        if (isSending) {
+            isSending = false;
+            // ループは次のチェックで停止する。ボタンの表示はループ終了時にリセット。
+            btnSend.textContent = '停止中...';
+            btnSend.disabled = true; // 連打防止
+            return;
+        }
+
         let rawText = document.getElementById('inputText').value;
-        if(!rawText) return;
+        if (!rawText) return;
+
+        // --- 送信開始処理 ---
+        isSending = true;
+        btnSend.textContent = '停止';
+        btnSend.style.backgroundColor = '#c00';
+        btnVoiceInput.disabled = true;
 
         // モードに応じた処理
         let textToProcess = rawText;
-        if(currentMode === 'JA') {
-            textToProcess = toKatakana(rawText).normalize('NFD'); 
+        if (currentMode === 'JA') {
+            textToProcess = toKatakana(rawText).normalize('NFD');
         } else {
             textToProcess = rawText.toUpperCase();
         }
 
-        // ボタン無効化
-        document.getElementById('btnSend').disabled = true;
-
-        // 辞書選択
         const dict = (currentMode === 'JA') ? MORSE_CODE_JA : MORSE_CODE_EN;
 
-        for (let char of textToProcess) {
-            // NFDで分離された濁点コードなどを、辞書のキーに合わせて変換
-            if(char === '\u3099') char = '゛'; 
-            if(char === '\u309A') char = '゜';
+        // ループの外でtry...finallyを使い、終了処理を確実に行う
+        try {
+            for (let char of textToProcess) {
+                if (!isSending) break; // ループの開始時にチェック
 
-            const code = dict[char];
-            if (code) {
-                for (let signal of code) {
-                    if (signal === '.') {
-                        await playTone(dotTimeMs);
-                    } else if (signal === '-') {
-                        await playTone(dotTimeMs * 3);
+                if (char === '\u3099') char = '゛';
+                if (char === '\u309A') char = '゜';
+
+                const code = dict[char];
+                if (code) {
+                    for (let signal of code) {
+                        if (!isSending) break;
+
+                        if (signal === '.') {
+                            await playTone(dotTimeMs);
+                        } else if (signal === '-') {
+                            await playTone(dotTimeMs * 3);
+                        }
+                        
+                        if (!isSending) break;
+                        await sleep(dotTimeMs); // 信号間の休止
                     }
-                    await sleep(dotTimeMs); // 信号間の休止
+                } else if (char === ' ' || char === '/' || char === '　') {
+                    if (!isSending) break;
+                    await sleep(charSpacingMs * 2);
                 }
-            } else if (char === ' ' || char === '/' || char === '　') {
-                // 単語間の休止は、文字間休止の2倍程度とする
-                await sleep(charSpacingMs * 2);
+                
+                if (!isSending) break;
+                await sleep(charSpacingMs); // 文字間
             }
-            await sleep(charSpacingMs); // 文字間
+        } finally {
+            // --- 終了処理 (正常終了でも途中停止でも呼ばれる) ---
+            isSending = false;
+            
+            // 点滅が残っていたら消す
+            document.body.classList.remove('flashing');
+            
+            btnSend.textContent = '送信';
+            btnSend.style.backgroundColor = "";
+            btnSend.disabled = false;
+            btnVoiceInput.disabled = false;
         }
-        document.getElementById('btnSend').disabled = false;
     });
 
     // --- 3. 受信機能 (Input & Process) ---
@@ -648,6 +684,7 @@
     const btnVoice = document.getElementById('btnVoiceInput');
     const inputText = document.getElementById('inputText');
     let recognition = null;
+    let originalTextBeforeVoice = null; // バックアップ用
 
     // テキストエリア自動調整
     function autoResizeInput() {
@@ -662,17 +699,46 @@
         recognition.lang = 'en-US'; // 初期値
         
         btnVoice.addEventListener('click', () => {
-            recognition.start();
-            btnVoice.style.background = "#aa0000";
+            const isRecognizing = originalTextBeforeVoice !== null;
+            // 既に起動中なら停止
+            if (isRecognizing) {
+                recognition.abort(); // これで onend が呼ばれる
+            } else { // 起動
+                originalTextBeforeVoice = inputText.value; // テキストをバックアップ
+                recognition.start();
+                btnVoice.textContent = '音声入力を停止';
+                btnVoice.style.background = "#c00";
+                document.getElementById('btnSend').disabled = true;
+            }
         });
         
         recognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript;
             inputText.value = transcript;
             autoResizeInput();
-            btnVoice.style.background = "";
+            originalTextBeforeVoice = null; // 成功したのでバックアップは不要
         };
-        recognition.onend = () => { btnVoice.style.background = ""; };
+
+        recognition.onend = () => {
+            // onendは、正常終了・abort・エラーのいずれでも呼ばれる
+            // 停止ボタンで中断した場合(backupが残っている)はテキストを戻す
+            if (originalTextBeforeVoice !== null) {
+                inputText.value = originalTextBeforeVoice;
+                autoResizeInput();
+            }
+            
+            // 状態リセット
+            originalTextBeforeVoice = null;
+            btnVoice.textContent = '音声入力';
+            btnVoice.style.background = "";
+            document.getElementById('btnSend').disabled = false;
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech Recognition Error:', event.error);
+            // エラーの場合も onend が呼ばれるので、テキスト復元は onend に任せる
+        };
+
     } else {
         btnVoice.style.display = 'none';
     }
