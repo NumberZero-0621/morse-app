@@ -115,7 +115,7 @@
             <span id="volumeVal">50</span>
         </div>
 
-        <details style="margin-top: 10px; text-align: left; background: #2a2a2a; padding: 10px; border-radius: 5px;">
+        <details id="detailsSend" style="margin-top: 10px; text-align: left; background: #2a2a2a; padding: 10px; border-radius: 5px;">
             <summary style="cursor: pointer; outline: none; color: #aaa;">詳細設定 (送信パラメータ)</summary>
             <div style="margin-top: 10px; padding-left: 10px;">
                 
@@ -170,7 +170,7 @@
             <span id="thresholdVal">40</span>
         </div>
 
-        <details style="margin-top: 10px; text-align: left; background: #2a2a2a; padding: 10px; border-radius: 5px;">
+        <details id="detailsRecv" style="margin-top: 10px; text-align: left; background: #2a2a2a; padding: 10px; border-radius: 5px;">
             <summary style="cursor: pointer; outline: none; color: #aaa;">詳細設定 (認識パラメータ)</summary>
             <div style="margin-top: 10px; padding-left: 10px;">
                 
@@ -676,6 +676,110 @@
     } else {
         btnVoice.style.display = 'none';
     }
+
+    // --- 5. 設定保存機能 (LocalStorage) ---
+
+    // HTML要素の参照
+    const detailsSend = document.getElementById('detailsSend');
+    const detailsRecv = document.getElementById('detailsRecv');
+
+    // 設定を保存する関数
+    function saveSettings() {
+        const settings = {
+            mode: document.querySelector('input[name="mode"]:checked').value,
+            sendAudio: document.getElementById('sendAudioToggle').checked,
+            sendFlash: document.getElementById('sendFlashToggle').checked,
+            volume: volumeSlider.value,
+            speed: speedSlider.value,
+            charSpace: charSpaceSlider.value,
+            freq: freqSlider.value,
+            waveType: waveSelect.value,
+            autoThreshold: autoThreshToggle.checked,
+            threshold: thresholdSlider.value,
+            dotDuration: dotSlider.value,
+            charGap: charGapSlider.value,
+            // UIの状態 (メニューの開閉) を保存
+            detailsSendOpen: detailsSend.open,
+            detailsRecvOpen: detailsRecv.open
+        };
+        localStorage.setItem('morseAppSettings', JSON.stringify(settings));
+    }
+
+    // 設定を読み込む関数
+    function loadSettings() {
+        const saved = localStorage.getItem('morseAppSettings');
+        if (!saved) return;
+        
+        try {
+            const s = JSON.parse(saved);
+            
+            // 値をセットしてイベントを発火させるヘルパー関数
+            const applyVal = (elem, val, eventType = 'input') => {
+                if (elem && val !== undefined) {
+                    if (elem.type === 'checkbox') {
+                        elem.checked = val;
+                    } else {
+                        elem.value = val;
+                    }
+                    elem.dispatchEvent(new Event(eventType));
+                }
+            };
+
+            // モード復元
+            if (s.mode) {
+                const radio = document.querySelector(`input[name="mode"][value="${s.mode}"]`);
+                if(radio) {
+                    radio.checked = true;
+                    radio.dispatchEvent(new Event('change'));
+                }
+            }
+
+            // パラメータ復元
+            applyVal(document.getElementById('sendAudioToggle'), s.sendAudio, 'change');
+            applyVal(document.getElementById('sendFlashToggle'), s.sendFlash, 'change');
+            
+            applyVal(volumeSlider, s.volume);
+            applyVal(speedSlider, s.speed);
+            applyVal(charSpaceSlider, s.charSpace);
+            applyVal(freqSlider, s.freq);
+            applyVal(waveSelect, s.waveType, 'change');
+            
+            applyVal(autoThreshToggle, s.autoThreshold, 'change');
+            if (!s.autoThreshold) {
+                applyVal(thresholdSlider, s.threshold);
+            }
+
+            applyVal(dotSlider, s.dotDuration);
+            applyVal(charGapSlider, s.charGap);
+
+            // UI状態の復元 (メニューの開閉)
+            if (s.detailsSendOpen !== undefined) detailsSend.open = s.detailsSendOpen;
+            if (s.detailsRecvOpen !== undefined) detailsRecv.open = s.detailsRecvOpen;
+
+        } catch (e) {
+            console.error("設定の読み込みに失敗しました", e);
+        }
+    }
+
+    // ページ読み込み時に実行
+    loadSettings();
+
+    // 変更監視対象
+    const inputsToSave = [
+        ...document.querySelectorAll('input[name="mode"]'),
+        document.getElementById('sendAudioToggle'),
+        document.getElementById('sendFlashToggle'),
+        volumeSlider, speedSlider, charSpaceSlider, freqSlider, waveSelect,
+        autoThreshToggle, thresholdSlider, dotSlider, charGapSlider
+    ];
+
+    inputsToSave.forEach(el => {
+        el.addEventListener('change', saveSettings);
+    });
+
+    // メニューの開閉(toggle)も保存のトリガーにする
+    detailsSend.addEventListener('toggle', saveSettings);
+    detailsRecv.addEventListener('toggle', saveSettings);
 </script>
 
 </body>
