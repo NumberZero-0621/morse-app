@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>モールス送受信機</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #222;
+            color: #0f0; /* レトロな端末感 */
+            text-align: center;
+            padding: 20px;
+            transition: background-color 0.1s;
+        }
+        h1 { margin-bottom: 10px; font-size: 1.5rem; }
+        .container { max-width: 600px; margin: 0 auto; }
+        
+        /* 入力エリア */
+        textarea {
+            width: 100%;
+            height: 80px;
+            font-size: 18px;
+            margin-bottom: 10px;
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+        }
+        
+        /* ボタン類 */
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background: #005500;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            margin: 5px;
+        }
+        button:active { background: #007700; }
+        button:disabled { background: #444; color: #888; }
+
+        /* 受信モニター */
+        #visualizer {
+            width: 100%;
+            height: 100px;
+            background: #000;
+            border: 1px solid #0f0;
+            margin-top: 20px;
+        }
+        #decodedText {
+            font-size: 24px;
+            font-weight: bold;
+            min-height: 40px;
+            margin-top: 10px;
+            word-wrap: break-word;
+            border-bottom: 1px solid #444;
+        }
+        
+        /* 調整スライダー */
+        .controls {
+            margin: 15px 0;
+            background: #333;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        label { display: block; margin-bottom: 5px; font-size: 0.9rem;}
+        
+        /* 送信中の光る演出用クラス */
+        .flashing {
+            background-color: #fff !important;
+            color: #000 !important;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>モールス送受信機</h1>
+    
+    <div>
+        <textarea id="inputText" placeholder="ここに入力 (例: SOS)"></textarea>
+        <br>
+        <button id="btnSend">送信（音+光）</button>
+        <button id="btnVoiceInput">🎤 音声入力</button>
+    </div>
+
+    <hr style="border-color:#444; margin:20px 0;">
+
+    <div>
+        <button id="btnListen">受信開始（マイクON）</button>
+        <div class="controls">
+            <label>マイク感度調整（しきい値）</label>
+            <input type="range" id="thresholdRange" min="0" max="255" value="100">
+            <span id="thresholdVal">100</span>
+        </div>
+        <canvas id="visualizer"></canvas>
+        <div style="text-align: left; color: #aaa; font-size: 0.8rem;">受信結果:</div>
+        <div id="decodedText">Waiting...</div>
+        <div id="debugSignal" style="font-family: monospace;"></div>
+    </div>
+</div>
+
+<script>
+    // --- 1. 定義・設定 ---
+    const MORSE_CODE = {
+        'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.',
+        'G': '--.', 'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..',
+        'M': '--', 'N': '-.', 'O': '---', 'P': '.--.', 'Q': '--.-', 'R': '.-.',
+        'S': '...', 'T': '-', 'U': '..-', 'V': '...-', 'W': '.--', 'X': '-..-',
+        'Y': '-.--', 'Z': '--..', '1': '.----', '2': '..---', '3': '...--',
+        '4': '....-', '5': '.....', '6': '-....', '7': '--...', '8': '---..',
+        '9': '----.', '0': '-----', ' ': '/'
+    };
+    // 逆引き辞書 (デコード用)
+    const REVERSE_MORSE = Object.fromEntries(Object.entries(MORSE_CODE).map(([k, v]) => [v, k]));
+
+    const DOT_TIME = 100; // 短点の長さ(ms) - 通信速度
+    let audioCtx = null;
+    let oscillator = null;
+
+    // --- 2. 送信機能 (Output) ---
+    async function playTone(duration) {
+        // 音の作成
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square'; // 矩形波（ブザー音っぽい音）
+        osc.frequency.setValueAtTime(600, audioCtx.currentTime); // 600Hz
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        
+        // 音を出す
+        osc.start();
+        // 光らせる (背景色変更)
+        document.body.classList.add('flashing');
+
+        await new Promise(r => setTimeout(r, duration));
+
+        // 音と光を止める
+        osc.stop();
+        document.body.classList.remove('flashing');
+    }
+
+    async function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    document.getElementById('btnSend').addEventListener('click', async () => {
+        const text = document.getElementById('inputText').value.toUpperCase();
+        if(!text) return;
+
+        // ボタンを無効化
+        document.getElementById('btnSend').disabled = true;
+
+        for (let char of text) {
+            const code = MORSE_CODE[char];
+            if (code) {
+                // 文字ごとの信号処理
+                for (let signal of code) {
+                    if (signal === '.') {
+                        await playTone(DOT_TIME);       // トン
+                    } else if (signal === '-') {
+                        await playTone(DOT_TIME * 3);   // ツー
+                    }
+                    await sleep(DOT_TIME); // 信号間の休止
+                }
+            } else if (char === ' ' || char === '　') {
+                await sleep(DOT_TIME * 3); // 単語間の休止
+            }
+            await sleep(DOT_TIME * 3); // 文字間の休止
+        }
+        document.getElementById('btnSend').disabled = false;
+    });
+
+    // --- 3. 受信機能 (Input & Process) ---
+    let analyser, dataArray, micStream;
+    let isListening = false;
+    let signalHistory = []; // 信号のON/OFF記録
+    let lastSignalTime = 0;
+    
+    document.getElementById('btnListen').addEventListener('click', async () => {
+        if (isListening) return;
+        try {
+            // マイクへのアクセス要求
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            const source = audioCtx.createMediaStreamSource(micStream);
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+            
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            isListening = true;
+            document.getElementById('btnListen').textContent = "受信中...";
+            document.getElementById('btnListen').disabled = true;
+            
+            visualize();
+            decodeLoop();
+        } catch (err) {
+            alert("マイクの使用が許可されませんでした。設定を確認してください。");
+            console.error(err);
+        }
+    });
+
+    // 波形とレベルの描画
+    const canvas = document.getElementById('visualizer');
+    const ctx = canvas.getContext('2d');
+    const thresholdSlider = document.getElementById('thresholdRange');
+    const thresholdDisp = document.getElementById('thresholdVal');
+
+    thresholdSlider.addEventListener('input', (e) => {
+        thresholdDisp.textContent = e.target.value;
+    });
+
+    let signalState = false; // 音が鳴っているか
+    let signalStartTime = 0;
+    let silenceStartTime = 0;
+    let currentMorseChar = "";
+
+    function visualize() {
+        if(!isListening) return;
+        requestAnimationFrame(visualize);
+        
+        analyser.getByteFrequencyData(dataArray);
+        
+        // 音量の平均を計算
+        let sum = 0;
+        for(let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        let average = sum / dataArray.length;
+        // 感度調整用ブースト
+        let displayVol = average * 3; 
+
+        // 描画クリア
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // しきい値のライン
+        const threshold = parseInt(thresholdSlider.value);
+        const yThresh = canvas.height - (threshold / 255 * canvas.height);
+        ctx.strokeStyle = '#555';
+        ctx.beginPath();
+        ctx.moveTo(0, yThresh);
+        ctx.lineTo(canvas.width, yThresh);
+        ctx.stroke();
+
+        // 現在の音量バー
+        const barHeight = (displayVol / 255) * canvas.height;
+        ctx.fillStyle = displayVol > threshold ? '#0f0' : '#050'; // しきい値超えなら明るい緑
+        ctx.fillRect(0, canvas.height - barHeight, canvas.width, barHeight);
+
+        // --- デコード処理の核 ---
+        const now = Date.now();
+        const isLoud = displayVol > threshold;
+
+        if (isLoud && !signalState) {
+            // 音が鳴り始めた
+            signalState = true;
+            signalStartTime = now;
+            // 無音期間が長かったら、前の文字を確定させるなどの処理が必要
+            if (now - silenceStartTime > DOT_TIME * 6) {
+                 // 単語区切り (スペース)
+                 updateOutput(" / ");
+                 currentMorseChar = "";
+            } else if (now - silenceStartTime > DOT_TIME * 3) {
+                 // 文字区切り
+                 if(currentMorseChar) interpretMorse(currentMorseChar);
+                 currentMorseChar = "";
+            }
+        } else if (!isLoud && signalState) {
+            // 音が止まった
+            signalState = false;
+            const duration = now - signalStartTime;
+            silenceStartTime = now;
+            
+            // 短点か長点か判定
+            if (duration < DOT_TIME * 2) { // 判定甘めに
+                currentMorseChar += ".";
+                document.getElementById('debugSignal').textContent += ".";
+            } else {
+                currentMorseChar += "-";
+                document.getElementById('debugSignal').textContent += "-";
+            }
+        }
+    }
+    
+    // 溜まった符号を文字に変換
+    function interpretMorse(code) {
+        const char = REVERSE_MORSE[code];
+        if (char) {
+            updateOutput(char);
+        } else {
+            updateOutput("?");
+        }
+        document.getElementById('debugSignal').textContent = "";
+    }
+
+    function updateOutput(str) {
+        const out = document.getElementById('decodedText');
+        if (out.textContent === "Waiting...") out.textContent = "";
+        out.textContent += str;
+    }
+
+    // --- 4. 音声認識API (補助機能) ---
+    const btnVoice = document.getElementById('btnVoiceInput');
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US'; // 英語モード (アルファベット用)
+        
+        btnVoice.addEventListener('click', () => {
+            recognition.start();
+            btnVoice.style.background = "#aa0000";
+        });
+        
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            document.getElementById('inputText').value = transcript;
+            btnVoice.style.background = "";
+        };
+        recognition.onend = () => { btnVoice.style.background = ""; };
+    } else {
+        btnVoice.style.display = 'none'; // 非対応ブラウザでは消す
+    }
+</script>
+
+</body>
+</html>
