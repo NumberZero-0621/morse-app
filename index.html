@@ -77,6 +77,161 @@
             background-color: #fff !important;
             color: #000 !important;
         }
+
+        /* デュアルレンジスライダー用 */
+        .range-slider-container {
+            position: relative;
+            width: 100%;
+            height: 30px;
+            margin-top: 5px;
+        }
+        .range-slider-container input[type="range"] {
+            position: absolute;
+            pointer-events: none; /* トラックをクリックしても反応させない（重なっているため） */
+            -webkit-appearance: none;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            z-index: 3;
+            margin: 0;
+            top: 0;
+            left: 0;
+        }
+        /* つまみ（Thumb）のデザインと操作有効化 */
+        .range-slider-container input[type="range"]::-webkit-slider-thumb {
+            pointer-events: auto; /* つまみだけ操作可能にする */
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            background: #0f0;
+            border: 2px solid #003300;
+            border-radius: 50%;
+            cursor: grab;
+            /* margin-top: -9px; 位置調整: 線の中央に合わせる */
+            position: relative;
+            z-index: 4;
+            transition: background 0.2s;
+        }
+        .range-slider-container input[type="range"]::-moz-range-thumb {
+            pointer-events: auto;
+            width: 24px;
+            height: 24px;
+            background: #0f0;
+            border: 2px solid #003300;
+            border-radius: 50%;
+            cursor: grab;
+            z-index: 4;
+            transition: background 0.2s;
+        }
+
+        /* 無効時のスタイル */
+        .range-slider-container.slider-disabled .slider-highlight {
+            background: #666 !important;
+        }
+        .range-slider-container.slider-disabled input[type="range"]::-webkit-slider-thumb {
+            background: #888 !important;
+            border-color: #444 !important;
+        }
+        .range-slider-container.slider-disabled input[type="range"]::-moz-range-thumb {
+            background: #888 !important;
+            border-color: #444 !important;
+        }
+        /* 背景トラック */
+        .slider-track {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 100%;
+            height: 6px;
+            background: #555;
+            border-radius: 3px;
+            z-index: 1;
+        }
+        /* 選択範囲のハイライト */
+        .slider-highlight {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 6px;
+            background: #007700;
+            z-index: 2;
+            border-radius: 3px;
+        }
+        /* 対応表 */
+        .morse-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            gap: 8px;
+            margin-bottom: 12px; /* 行ごとの区切り */
+        }
+        .morse-item {
+            background: #2a2a2a;
+            padding: 5px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: #ddd;
+        }
+        .morse-char { font-weight: bold; color: #fff; display: block; }
+        .morse-code { color: #0f0; display: block; font-family: monospace; }
+        
+        /* 受信信号のスタイル (送信信号表示も共通化) */
+        #debugSignal span, #sentSignalDisplay span { 
+            transition: color 0.1s; 
+            margin-right: 1px; 
+            color: #0f0; /* デフォルトは緑 */
+        }
+        
+        /* 処理済み、または送信完了は白 (!importantでフラッシュ時の色反転を阻止) */
+        .signal-processed { color: #fff !important; }
+
+        #debugSignal, #sentSignalDisplay {
+            font-size: 20px;
+            font-family: monospace;
+            margin-top: 5px;
+            min-height: 30px;
+            word-wrap: break-word;
+            white-space: pre-wrap; /* 改行を反映させるため */
+        }
+        /* 送信信号表示エリア固有のスタイル */
+        #sentSignalDisplay {
+            text-align: left;
+            margin-bottom: 10px;
+            background: #222;
+            border-bottom: 1px solid #444;
+            padding: 5px;
+        }
+
+        /* ドラッグ&ドロップ中のスタイル */
+        body.dragging {
+            background-color: #1a1a1a;
+            outline: 4px dashed #0f0; /* レイアウトに影響しない枠線 */
+            outline-offset: -10px;
+        }
+
+        /* 数値直接入力用 */
+        .editable-val {
+            cursor: pointer;
+            border-bottom: 1px dashed #666;
+            min-width: 30px;
+            display: inline-block;
+            text-align: right;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .editable-val:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+        .editing-input {
+            width: 60px;
+            background: #222;
+            color: #fff;
+            border: 1px solid #0f0;
+            font-size: 0.9rem;
+            text-align: right;
+            padding: 0 5px;
+            border-radius: 3px;
+        }
     </style>
 </head>
 <body>
@@ -95,6 +250,7 @@
     
     <div>
         <textarea id="inputText" placeholder="ここに入力 (例: SOS)  ※小文字も対応"></textarea>
+        <div id="sentSignalDisplay"></div>
         <br>
         <div style="display: flex; align-items: center; gap: 24px; margin-bottom: 8px;">
              <label style="font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 8px;">
@@ -108,6 +264,7 @@
         </div>
         <button id="btnSend">送信</button>
         <button id="btnVoiceInput">音声入力</button>
+        <button id="btnExport">書き出し</button>
         
         <div class="controls" style="margin-top: 10px;">
             <label>送信音量</label>
@@ -154,7 +311,7 @@
 
                 <label>音の高さ (Hz)</label>
                 <div style="display: flex; align-items: center;">
-                    <input type="range" id="freqRange" min="200" max="1200" value="600" style="flex: 1;">
+                    <input type="range" id="freqRange" min="0" max="20000" step="1" value="9848" style="flex: 1;">
                     <span id="freqVal" style="width: 40px; text-align: right;">600</span>
                 </div>
 
@@ -175,7 +332,18 @@
     <hr style="border-color:#444; margin:20px 0;">
 
     <div>
-        <button id="btnListen">受信開始（マイクON）</button>
+        <div style="display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 10px;">
+            <button id="btnListen">受信開始（マイクON）</button>
+            <button id="btnImport">読み込み</button>
+            <input type="file" id="fileInput" accept="audio/*" style="display: none;">
+        </div>
+        
+        <!-- 読み込み用プレイヤー (初期非表示) -->
+        <div id="audioPlayerContainer" style="display:none; width: 100%; margin-bottom: 10px; background: #222; padding: 5px; border: 1px solid #444; border-radius: 5px;">
+            <div style="text-align: left; color: #ccc; font-size: 0.8rem; margin-bottom: 2px;">ファイル再生: <span id="fileNameDisplay" style="color: #fff;"></span></div>
+            <audio id="audioPlayer" controls style="width: 100%; height: 30px;"></audio>
+        </div>
+
         <div class="controls">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <label>マイク感度調整（しきい値）</label>
@@ -207,13 +375,81 @@
                 </div>
                 <small style="color: #777;">これ以上の無音が続くと文字確定</small>
 
+                <br><br>
+
+                <label>入力ゲイン (マイク音量)</label>
+                <div style="display: flex; align-items: center;">
+                    <input type="range" id="inputVolumeRange" min="0" max="10000" step="1" value="4036" style="flex: 1;">
+                    <span id="inputVolumeVal" style="width: 40px; text-align: right;">100</span>
+                </div>
+                <small style="color: #777;">入力信号の大きさを調整 (100が標準、最大3000%まで増幅可)</small>
+
+                <br><br>
+
+                <label>レベルメーターの反応速度 (平滑化)</label>
+                <div style="display: flex; align-items: center;">
+                    <input type="range" id="smoothingRange" min="0" max="0.95" step="0.05" value="0.1" style="flex: 1;">
+                    <span id="smoothingVal" style="width: 40px; text-align: right;">0.2</span>
+                </div>
+                <small style="color: #777;">0に近いほど機敏に反応します (推奨: 0.2)</small>
+
+                <br>
+                <hr style="border-color:#444; margin:15px 0;">
+
+                <label style="display: flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer;">
+                    <input type="checkbox" id="filterToggle" style="width: 18px; height: 18px;">
+                    周波数フィルタ (帯域制限)
+                </label>
+                <div style="margin-top: 5px; margin-bottom: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; color: #ccc; margin-bottom: 5px;">
+                        <div>
+                            Min: <span id="filterMinVal">400</span> / Max: <span id="filterMaxVal">900</span> Hz
+                        </div>
+                        <button id="btnResetFilter" style="padding: 2px 10px; font-size: 0.8rem; margin: 0; background: #555; border: 1px solid #777;">リセット</button>
+                    </div>
+                    <div class="range-slider-container" id="filterSliderContainer">
+                        <div class="slider-track"></div>
+                        <div class="slider-highlight" id="filterHighlight"></div>
+                        <input type="range" id="filterMinRange" min="0" max="20000" step="1" value="8674">
+                        <input type="range" id="filterMaxRange" min="0" max="20000" step="1" value="11021">
+                    </div>
+                    <small style="color: #777;">指定した範囲外の周波数をカットします (ノイズ対策)</small>
+
+                    <br><br>
+                    <label>減衰強度 (Q値)</label>
+                    <div style="display: flex; align-items: center;">
+                        <input type="range" id="filterQRange" min="0.1" max="30" step="0.1" value="1" style="flex: 1;">
+                        <span id="filterQVal" style="width: 40px; text-align: right;">1.0</span>
+                    </div>
+                    <small style="color: #777;">値を大きくすると境界が鋭くなりますが、上げすぎると金属的な響きになります。</small>
+                </div>
+
             </div>
         </details>
 
         <canvas id="visualizer"></canvas>
+        <div style="position: relative; width: 100%; height: 20px; color: #aaa; font-size: 0.75rem; margin-top: 2px; margin-bottom: 5px;">
+            <span style="position: absolute; left: 0%;">20Hz</span>
+            <span style="position: absolute; left: 13.3%; transform: translateX(-50%);">50</span>
+            <span style="position: absolute; left: 23.3%; transform: translateX(-50%);">100</span>
+            <span style="position: absolute; left: 33.3%; transform: translateX(-50%);">200</span>
+            <span style="position: absolute; left: 46.6%; transform: translateX(-50%);">500</span>
+            <span style="position: absolute; left: 56.6%; transform: translateX(-50%);">1k</span>
+            <span style="position: absolute; left: 66.6%; transform: translateX(-50%);">2k</span>
+            <span style="position: absolute; left: 79.9%; transform: translateX(-50%);">5k</span>
+            <span style="position: absolute; left: 90.0%; transform: translateX(-50%);">10k</span>
+            <span style="position: absolute; right: 0%;">20k</span>
+        </div>
         <div style="text-align: left; color: #aaa; font-size: 0.8rem;">受信結果:</div>
         <div id="decodedText">Waiting...</div>
-        <div id="debugSignal" style="font-family: monospace;"></div>
+        <div id="debugSignal"></div>
+    </div>
+
+    <hr style="border-color:#444; margin:20px 0;">
+
+    <div id="referenceSection" style="text-align: left;">
+        <h3 style="margin-top: 0; font-size: 1.2rem; color: #aaa;">モールス信号 対応表</h3>
+        <div id="morseReference"></div>
     </div>
 </div>
 
@@ -271,6 +507,22 @@
     const REVERSE_EN = createReverseMap(MORSE_CODE_EN);
     const REVERSE_JA = createReverseMap(MORSE_CODE_JA);
 
+    // 対数スケール変換用ヘルパー
+    function logScale(val, maxVal, minFreq, maxFreq) {
+        const minLog = Math.log(minFreq);
+        const maxLog = Math.log(maxFreq);
+        const scale = (maxLog - minLog) / maxVal;
+        return Math.exp(minLog + scale * val);
+    }
+
+    function inverseLogScale(freq, maxVal, minFreq, maxFreq) {
+        if (freq <= 0) freq = minFreq; // ゼロ以下防止
+        const minLog = Math.log(minFreq);
+        const maxLog = Math.log(maxFreq);
+        const scale = (maxLog - minLog) / maxVal;
+        return (Math.log(freq) - minLog) / scale;
+    }
+
     // モード切替イベント
     document.querySelectorAll('input[name="mode"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
@@ -282,8 +534,64 @@
             // プレースホルダー変更
             document.getElementById('inputText').placeholder = 
                 (currentMode === 'JA') ? "ここに入力 (例: タスケテ)  ※ひらがなも対応" : "ここに入力 (例: SOS)  ※小文字も対応";
+            
+            updateReferenceTable();
         });
     });
+
+    // 対応表の更新
+    function updateReferenceTable() {
+        const container = document.getElementById('morseReference');
+        if (!container) return;
+        container.innerHTML = '';
+        
+        const dict = (currentMode === 'JA') ? MORSE_CODE_JA : MORSE_CODE_EN;
+        
+        // 表示レイアウト定義
+        let layout = [];
+        if (currentMode === 'JA') {
+            layout = [
+                "アイウエオ".split(''),
+                "カキクケコ".split(''),
+                "サシスセソ".split(''),
+                "タチツテト".split(''),
+                "ナニヌネノ".split(''),
+                "ハヒフヘホ".split(''),
+                "マミムメモ".split(''),
+                "ヤユヨ".split(''),
+                "ラリルレロ".split(''),
+                "ワヲン".split(''),
+                "゛゜ー、」".split(''), // 記号類
+                "1234567890".split('')
+            ];
+        } else {
+            layout = [
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split(''),
+                "1234567890.,?".split('')
+            ];
+        }
+
+        layout.forEach(rowChars => {
+            const rowDiv = document.createElement('div');
+            rowDiv.className = 'morse-row';
+            
+            let hasContent = false;
+            rowChars.forEach(key => {
+                const code = dict[key];
+                if (code) {
+                    const item = document.createElement('div');
+                    item.className = 'morse-item';
+                    item.innerHTML = `<span class="morse-char">${key}</span><span class="morse-code">${code}</span>`;
+                    rowDiv.appendChild(item);
+                    hasContent = true;
+                }
+            });
+            
+            if (hasContent) {
+                container.appendChild(rowDiv);
+            }
+        });
+    }
 
     let dotLengthMs = 80;
     let dashLengthMs = 240;
@@ -330,7 +638,9 @@
         charSpaceDisp.textContent = charSpacingMs;
     });
     freqSlider.addEventListener('input', (e) => {
-        freqDisp.textContent = e.target.value;
+        const val = parseInt(e.target.value);
+        const freq = Math.round(logScale(val, 20000, 20, 20000));
+        freqDisp.textContent = freq;
     });
 
     // --- 2. 送信機能 (Output) ---
@@ -346,7 +656,8 @@
             const gain = audioCtx.createGain();
             
             const vol = parseInt(volumeSlider.value) / 100; 
-            const freq = parseInt(freqSlider.value);
+            // スライダー値(0-1000)から周波数(Hz)へ変換
+            const freq = Math.round(logScale(parseInt(freqSlider.value), 20000, 20, 20000));
             const type = waveSelect.value;
 
             osc.type = type;
@@ -399,6 +710,10 @@
         btnSend.textContent = '停止';
         btnSend.style.backgroundColor = '#c00';
         btnVoiceInput.disabled = true;
+        
+        // 送信表示エリアをクリア
+        const sentDisplay = document.getElementById('sentSignalDisplay');
+        sentDisplay.innerHTML = '';
 
         // モードに応じた処理
         let textToProcess = rawText;
@@ -415,13 +730,28 @@
             for (let char of textToProcess) {
                 if (!isSending) break; // ループの開始時にチェック
 
+                // 改行処理
+                if (char === '\n') {
+                    sentDisplay.appendChild(document.createElement('br'));
+                    continue;
+                }
+
                 if (char === '\u3099') char = '゛';
                 if (char === '\u309A') char = '゜';
 
                 const code = dict[char];
                 if (code) {
+                    // この文字の信号を表示するspanを一時保存する配列
+                    const currentCharSpans = [];
+
                     for (let signal of code) {
                         if (!isSending) break;
+
+                        // 信号を表示 (クラスを付けないのでデフォルトの緑色になる)
+                        const span = document.createElement('span');
+                        span.textContent = signal;
+                        sentDisplay.appendChild(span);
+                        currentCharSpans.push(span);
 
                         if (signal === '.') {
                             await playTone(dotLengthMs);
@@ -429,11 +759,31 @@
                             await playTone(dashLengthMs);
                         }
                         
+                        // ここではまだ白くしない
+                        
                         if (!isSending) break;
                         await sleep(signalIntervalMs); // 信号間の休止
                     }
+                    
+                    // 文字全体の送信が終わったら、まとめて処理済み(白色)にする
+                    currentCharSpans.forEach(s => s.classList.add('signal-processed'));
+
+                    // 文字の区切りにスペースを入れる
+                    if (isSending) {
+                        const space = document.createElement('span');
+                        space.innerHTML = '&nbsp;';
+                        space.className = 'signal-processed';
+                        sentDisplay.appendChild(space);
+                    }
+
                 } else if (char === ' ' || char === '/' || char === '　') {
                     if (!isSending) break;
+                    const slash = document.createElement('span');
+                    slash.textContent = '/';
+                    slash.innerHTML += '&nbsp;';
+                    slash.className = 'signal-processed';
+                    sentDisplay.appendChild(slash);
+                    
                     await sleep(charSpacingMs * 2);
                 }
                 
@@ -491,61 +841,275 @@
         }
     });
 
-    document.getElementById('btnListen').addEventListener('click', async () => {
-        // --- 停止処理 ---
-        if (isListening) {
-            isListening = false;
-            const btn = document.getElementById('btnListen');
-            btn.textContent = "受信開始（マイクON）";
-            btn.style.backgroundColor = ""; 
+    // --- インポート機能 & オーディオグラフ共通化 ---
+    const btnListen = document.getElementById('btnListen');
+    const btnImport = document.getElementById('btnImport');
+    const fileInput = document.getElementById('fileInput');
+    const audioPlayerContainer = document.getElementById('audioPlayerContainer');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    
+    let fileSource = null; // MediaElementAudioSourceNode
+    let currentInputType = null; // 'mic' or 'file' or null
+
+    // オーディオ処理チェーンを構築・初期化する共通関数
+    async function initAudioGraph() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+        // ノードが未作成なら作成
+        if (!analyser) {
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 2048;
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+        }
+        // 平滑化定数を適用
+        analyser.smoothingTimeConstant = parseFloat(smoothingSlider.value);
+
+        if (!inputGainNode) {
+            inputGainNode = audioCtx.createGain();
+            const sliderVal = parseInt(inputVolumeRange.value);
+            let gainPercent = 0;
+            if (sliderVal > 0) gainPercent = Math.round(logScale(sliderVal, 10000, 10, 3000));
+            inputGainNode.gain.value = gainPercent / 100.0;
+        }
+
+        if (!filterNodeHigh1) {
+            // フィルタノード作成
+            filterNodeHigh1 = audioCtx.createBiquadFilter(); filterNodeHigh1.type = "highpass";
+            filterNodeHigh2 = audioCtx.createBiquadFilter(); filterNodeHigh2.type = "highpass";
+            filterNodeLow1 = audioCtx.createBiquadFilter(); filterNodeLow1.type = "lowpass";
+            filterNodeLow2 = audioCtx.createBiquadFilter(); filterNodeLow2.type = "lowpass";
+            gainNodeComp = audioCtx.createGain();
+        }
+
+        // 設定値の適用
+        const qVal = parseFloat(filterQRange.value);
+        filterNodeHigh1.Q.value = qVal;
+        filterNodeHigh2.Q.value = qVal;
+        filterNodeLow1.Q.value = qVal;
+        filterNodeLow2.Q.value = qVal;
+        
+        updateGain(); // ゲイン補正計算
+
+        if (filterToggle.checked) {
+            const min = filterMinRange.value;
+            const max = filterMaxRange.value;
+            filterNodeHigh1.frequency.value = min;
+            filterNodeHigh2.frequency.value = min;
+            filterNodeLow1.frequency.value = max;
+            filterNodeLow2.frequency.value = max;
+        } else {
+            filterNodeHigh1.frequency.value = 0;
+            filterNodeHigh2.frequency.value = 0;
+            filterNodeLow1.frequency.value = 22050;
+            filterNodeLow2.frequency.value = 22050;
+            if(gainNodeComp) gainNodeComp.gain.value = 1.0;
+        }
+
+        // 接続チェーン再構築 (切断してから繋ぎ直すのが安全)
+        // Source -> inputGainNode は呼び出し元で行う
+        inputGainNode.disconnect();
+        filterNodeHigh1.disconnect();
+        filterNodeHigh2.disconnect();
+        filterNodeLow1.disconnect();
+        filterNodeLow2.disconnect();
+        gainNodeComp.disconnect();
+
+        inputGainNode.connect(filterNodeHigh1);
+        filterNodeHigh1.connect(filterNodeHigh2);
+        filterNodeHigh2.connect(filterNodeLow1);
+        filterNodeLow1.connect(filterNodeLow2);
+        filterNodeLow2.connect(gainNodeComp);
+        gainNodeComp.connect(analyser);
+        
+        // アナライザをDestination(スピーカー)に繋ぐかどうか
+        // マイク入力時: ハウリングするので繋がない
+        // ファイル再生時: 音を聞きたいので繋ぐ必要がある
+        // -> これは呼び出し元で制御、またはここで分岐
+    }
+
+    // すべての入力を停止する関数
+    function stopAllInputs() {
+        isListening = false;
+        currentInputType = null;
+
+        // マイク停止
+        if (micStream) {
+            micStream.getTracks().forEach(track => track.stop());
+            micStream = null;
+        }
+        btnListen.textContent = "受信開始（マイクON）";
+        btnListen.style.backgroundColor = "";
+
+        // ファイル再生停止（一時停止）
+        if (!audioPlayer.paused) {
+            audioPlayer.pause();
+        }
+        
+        // ビジュアライザーリセット
+        drawThresholdOnly();
+    }
+
+    // マイクボタンクリック
+    btnListen.addEventListener('click', async () => {
+        if (currentInputType === 'mic') {
+            stopAllInputs();
+            return;
+        }
+
+        // 他のモードが動いていたら止める
+        stopAllInputs();
+
+        try {
+            await initAudioGraph();
             
+            // アナライザの出力をスピーカーから切断 (マイクのハウリング防止)
+            analyser.disconnect(); 
+
+            // マイク取得
+            if (!navigator.mediaDevices) {
+                throw new Error("マイク入力非対応");
+            }
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const source = audioCtx.createMediaStreamSource(micStream);
+            
+            source.connect(inputGainNode);
+
+            // 状態更新
+            currentInputType = 'mic';
+            isListening = true;
+            
+            // UI更新
+            document.getElementById('decodedText').textContent = "Waiting...";
+            document.getElementById('debugSignal').innerHTML = ""; 
+            currentMorseChar = "";
+            silenceStartTime = Date.now(); 
+
+            btnListen.textContent = "受信停止";
+            btnListen.style.backgroundColor = "#c00";
+            
+            visualize();
+
+        } catch (err) {
+            alert("マイクエラー: " + err.message);
+            console.error(err);
+            stopAllInputs();
+        }
+    });
+
+    // ファイル読み込みボタン
+    btnImport.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    // 共通のファイル読み込み関数
+    function loadAudioFile(file) {
+        if (!file) return;
+        // 型チェック (厳密すぎると一部のwavで引っかかることがあるので、緩くチェックするか、エラー時に弾く)
+        if (!file.type.startsWith('audio/')) {
+            // 拡張子でも簡易チェック
+            if (!file.name.toLowerCase().endsWith('.wav') && !file.name.toLowerCase().endsWith('.mp3')) {
+                alert("音声ファイル(wav, mp3等)を選択してください。");
+                return;
+            }
+        }
+
+        const url = URL.createObjectURL(file);
+        audioPlayer.src = url;
+        audioPlayerContainer.style.display = 'block';
+        fileNameDisplay.textContent = file.name;
+    }
+
+    fileInput.addEventListener('change', (e) => {
+        loadAudioFile(e.target.files[0]);
+    });
+
+    // --- ドラッグ&ドロップ対応 ---
+    const dropZone = document.body;
+
+    // デフォルト動作の無効化
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // ハイライトの切り替え
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.add('dragging'), false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragging'), false);
+    });
+
+    // ドロップ時の処理
+    dropZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+            loadAudioFile(files[0]);
+        }
+    }, false);
+
+    // プレイヤーの再生イベント
+    audioPlayer.addEventListener('play', async () => {
+        // マイク受信中なら止める
+        if (currentInputType === 'mic') {
+            // stopAllInputs()を呼ぶとプレイヤーも止めてしまうので、マイクだけ止める処理が必要だが
+            // ここではシンプルに「マイクモード」を解除する
             if (micStream) {
                 micStream.getTracks().forEach(track => track.stop());
                 micStream = null;
             }
-
-            // ビジュアライザーリセット
-            drawThresholdOnly();
-            return;
+            btnListen.textContent = "受信開始（マイクON）";
+            btnListen.style.backgroundColor = "";
+            isListening = false;
         }
 
-        // --- 開始処理 ---
-        try {
-            document.getElementById('decodedText').textContent = "Waiting...";
-            document.getElementById('debugSignal').textContent = "";
-            currentMorseChar = "";
+        currentInputType = 'file';
 
-            if (!navigator.mediaDevices) {
-                throw new Error("このブラウザはマイク入力をサポートしていないか、HTTPS接続ではありません。");
-            }
+        await initAudioGraph();
 
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioCtx.state === 'suspended') await audioCtx.resume();
-
-            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
-            const source = audioCtx.createMediaStreamSource(micStream);
-            analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 256;
-            source.connect(analyser);
-            
-            dataArray = new Uint8Array(analyser.frequencyBinCount);
-            isListening = true;
-            
-            // 無音タイマーの初期化 (これをしないと最初の一音目で必ず / が入る)
-            silenceStartTime = Date.now(); 
-
-            const btn = document.getElementById('btnListen');
-            btn.textContent = "受信停止";
-            btn.disabled = false;
-            btn.style.backgroundColor = "#c00";
-            
-            visualize();
-        } catch (err) {
-            alert("エラーが発生しました: " + err.name + "\n" + err.message + "\n\nマイクの使用が許可されませんでした。Windowsの「設定 > プライバシー > マイク」を確認してください。");
-            console.error(err);
+        // ソース作成 (一度だけ)
+        if (!fileSource) {
+            // createMediaElementSource は同じエレメントに対して1回しか呼べない
+            fileSource = audioCtx.createMediaElementSource(audioPlayer);
         }
+
+        // 接続
+        // Player -> Source -> InputGain -> ... -> Analyser
+        fileSource.disconnect();
+        fileSource.connect(inputGainNode);
+        
+        // ファイル再生時は、音をスピーカーからも出したい
+        // Analyser -> Destination
+        analyser.connect(audioCtx.destination);
+
+        // 状態リセット
+        document.getElementById('decodedText').textContent = "Waiting...";
+        document.getElementById('debugSignal').innerHTML = ""; 
+        currentMorseChar = "";
+        silenceStartTime = Date.now(); 
+
+        isListening = true;
+        visualize();
     });
+
+    // プレイヤーの一時停止・終了イベント
+    const onPlayerStop = () => {
+        if (currentInputType === 'file') {
+            isListening = false;
+            // 完全にリセットはせず、グラフ描画を止めるだけ
+            // currentInputType = null; // 再開できるように維持してもいいが、今回はシンプルに
+            drawThresholdOnly();
+        }
+    };
+    audioPlayer.addEventListener('pause', onPlayerStop);
+    audioPlayer.addEventListener('ended', onPlayerStop);
+
 
     // --- 詳細設定の制御 ---
     let dotThresholdTime = 200; 
@@ -557,6 +1121,261 @@
     const charGapSlider = document.getElementById('charGapRange');
     const charGapVal = document.getElementById('charGapVal');
     const autoThreshToggle = document.getElementById('autoThresholdToggle');
+    
+    // 入力ゲイン用
+    const inputVolumeRange = document.getElementById('inputVolumeRange');
+    const inputVolumeVal = document.getElementById('inputVolumeVal');
+    let inputGainNode = null;
+
+    inputVolumeRange.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        let gainPercent = 0;
+        if (val > 0) gainPercent = Math.round(logScale(val, 10000, 10, 3000));
+        
+        inputVolumeVal.textContent = gainPercent;
+        if(inputGainNode) {
+            inputGainNode.gain.value = gainPercent / 100.0;
+        }
+    });
+
+    // 平滑化 (Smoothing)
+    const smoothingSlider = document.getElementById('smoothingRange');
+    const smoothingDisp = document.getElementById('smoothingVal');
+    
+    smoothingSlider.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        smoothingDisp.textContent = val.toFixed(2);
+        if (analyser) {
+            analyser.smoothingTimeConstant = val;
+        }
+    });
+
+    // フィルタ用
+    const filterToggle = document.getElementById('filterToggle');
+    const filterMinRange = document.getElementById('filterMinRange');
+    const filterMaxRange = document.getElementById('filterMaxRange');
+    const filterMinVal = document.getElementById('filterMinVal');
+    const filterMaxVal = document.getElementById('filterMaxVal');
+    const filterHighlight = document.getElementById('filterHighlight');
+    const filterSliderContainer = document.getElementById('filterSliderContainer');
+    
+    const filterQRange = document.getElementById('filterQRange');
+    const filterQVal = document.getElementById('filterQVal');
+
+    // 2段構成にするためノードを増やす
+    let filterNodeHigh1 = null; 
+    let filterNodeHigh2 = null;
+    let filterNodeLow1 = null;  
+    let filterNodeLow2 = null;
+    let gainNodeComp = null; // Q値補正用ゲインノード
+
+    // Q値・帯域幅・周波数に応じた高度なゲイン補正計算
+    function getGainCompensation(q, min, max) {
+        if (q <= 1) return 1.0;
+
+        // 1. Q値による基本減衰 (Qが高いほど下げる)
+        // 以前より係数を緩やかに設定 (0.5 -> 0.2)
+        const baseGain = 1 / (1 + (q - 1) * 0.2);
+
+        // 2. 帯域幅による補正 (狭いほど共振が重なるため下げる)
+        const bandwidth = max - min;
+        // 幅が0に近いと0.3倍、幅が700Hz以上で等倍(1.0)になるようなカーブ
+        let bwFactor = Math.min(1.0, bandwidth / 700 + 0.01);
+
+        // 3. 周波数による補正 (高周波ほどエネルギーが強くなりやすいため下げる)
+        const centerFreq = (min + max) / 2;
+        // 以前の実装(累乗計算)では減衰が激しすぎたため、より緩やかなカーブに変更
+        const freqRatio = (2500 / (centerFreq + 2500) ** 2);
+
+        // 4. 補正の適用強度をQ値に応じて滑らかに変化させる
+        // Q=1.0のときは補正なし(1.0)、Qが大きくなるにつれて本来の補正値(bwFactor * freqRatio)に近づける
+        // これにより Q=1.0 -> 1.1 のときの急激な音量変化（ガクンと下がる現象）を防ぐ
+        const transitionFactor = (q - 1) / (q + 5); // 0(Q=1) -> 近似1.0(Q=Large)
+
+        // 1.0 と ターゲット補正値 をブレンド
+        const envFactor = 1.0 * (1 - transitionFactor) + (bwFactor * freqRatio) * transitionFactor;
+
+        return baseGain * envFactor;
+    }
+    
+    // 現在のUI値からゲインを更新するヘルパー
+    function updateGain() {
+        if (!gainNodeComp) return;
+        
+        if (filterToggle.checked) {
+            const q = parseFloat(filterQRange.value);
+            // 0-1000 -> Hz
+            const min = Math.round(logScale(parseInt(filterMinRange.value), 20000, 20, 20000));
+            const max = Math.round(logScale(parseInt(filterMaxRange.value), 20000, 20, 20000));
+            gainNodeComp.gain.value = getGainCompensation(q, min, max);
+        } else {
+            gainNodeComp.gain.value = 1.0;
+        }
+    }
+
+    function updateSliderHighlight() {
+        const minVal = parseInt(filterMinRange.value);
+        const maxVal = parseInt(filterMaxRange.value);
+        const totalMax = parseInt(filterMaxRange.max);
+        const totalMin = parseInt(filterMinRange.min);
+        
+        // %計算 (スライダー位置で計算)
+        const leftPercent = ((minVal - totalMin) / (totalMax - totalMin)) * 100;
+        const widthPercent = ((maxVal - minVal) / (totalMax - totalMin)) * 100;
+
+        filterHighlight.style.left = leftPercent + "%";
+        filterHighlight.style.width = widthPercent + "%";
+
+        // 表示用にHz変換
+        const minHz = Math.round(logScale(minVal, 20000, 20, 20000));
+        const maxHz = Math.round(logScale(maxVal, 20000, 20, 20000));
+        
+        filterMinVal.textContent = minHz;
+        filterMaxVal.textContent = maxHz;
+
+        // ON/OFFで色を変える
+        if (filterToggle.checked) {
+            filterSliderContainer.classList.remove('slider-disabled');
+            filterQRange.disabled = false;
+            filterQRange.style.opacity = "1";
+        } else {
+            filterSliderContainer.classList.add('slider-disabled');
+            filterQRange.disabled = true;
+            filterQRange.style.opacity = "0.5";
+        }
+    }
+
+    // 初期表示更新
+    updateSliderHighlight();
+
+    filterMinRange.addEventListener('input', (e) => {
+        let minVal = parseInt(e.target.value);
+        let maxVal = parseInt(filterMaxRange.value);
+        
+        // Hzに変換して差分チェック
+        let minHz = Math.round(logScale(minVal, 20000, 20, 20000));
+        let maxHz = Math.round(logScale(maxVal, 20000, 20, 20000));
+
+        if (minHz > maxHz - 50) { // 最小幅50Hz
+             // 50Hz確保できる位置まで戻す
+             const safeMinHz = maxHz - 50;
+             // Hz -> スライダー値
+             const safeMinVal = Math.floor(inverseLogScale(safeMinHz, 20000, 20, 20000));
+             e.target.value = safeMinVal;
+             minVal = safeMinVal;
+             minHz = safeMinHz;
+        }
+        
+        updateSliderHighlight();
+        if(filterNodeHigh1) filterNodeHigh1.frequency.value = minHz;
+        if(filterNodeHigh2) filterNodeHigh2.frequency.value = minHz;
+        updateGain(); // ゲイン更新
+    });
+
+    filterMaxRange.addEventListener('input', (e) => {
+        let maxVal = parseInt(e.target.value);
+        let minVal = parseInt(filterMinRange.value);
+        
+        let maxHz = Math.round(logScale(maxVal, 20000, 20, 20000));
+        let minHz = Math.round(logScale(minVal, 20000, 20, 20000));
+        
+        if (maxHz < minHz + 50) {
+            const safeMaxHz = minHz + 50;
+            const safeMaxVal = Math.ceil(inverseLogScale(safeMaxHz, 20000, 20, 20000));
+            e.target.value = safeMaxVal;
+            maxVal = safeMaxVal;
+            maxHz = safeMaxHz;
+        }
+        
+        updateSliderHighlight();
+        if(filterNodeLow1) filterNodeLow1.frequency.value = maxHz;
+        if(filterNodeLow2) filterNodeLow2.frequency.value = maxHz;
+        updateGain(); // ゲイン更新
+    });
+    
+    filterQRange.addEventListener('input', (e) => {
+        const q = parseFloat(e.target.value);
+        filterQVal.textContent = q.toFixed(1);
+        
+        if(filterNodeHigh1) {
+            filterNodeHigh1.Q.value = q;
+            filterNodeHigh2.Q.value = q;
+            filterNodeLow1.Q.value = q;
+            filterNodeLow2.Q.value = q;
+        }
+        updateGain(); // ゲイン更新
+    });
+
+    filterToggle.addEventListener('change', () => {
+        if (filterNodeHigh1) {
+            if (filterToggle.checked) {
+                const minHz = Math.round(logScale(parseInt(filterMinRange.value), 20000, 20, 20000));
+                const maxHz = Math.round(logScale(parseInt(filterMaxRange.value), 20000, 20, 20000));
+                const q = parseFloat(filterQRange.value);
+                
+                filterNodeHigh1.frequency.value = minHz;
+                filterNodeHigh2.frequency.value = minHz;
+                filterNodeLow1.frequency.value = maxHz;
+                filterNodeLow2.frequency.value = maxHz;
+                
+                // Q値も復元
+                filterNodeHigh1.Q.value = q;
+                filterNodeHigh2.Q.value = q;
+                filterNodeLow1.Q.value = q;
+                filterNodeLow2.Q.value = q;
+                
+                // ゲイン補正適用
+                gainNodeComp.gain.value = getGainCompensation(q, minHz, maxHz);
+
+            } else {
+                // 実質無効化
+                filterNodeHigh1.frequency.value = 0;
+                filterNodeHigh2.frequency.value = 0;
+                filterNodeLow1.frequency.value = 22050;
+                filterNodeLow2.frequency.value = 22050;
+                // Qは影響少ないが念のため標準に
+                filterNodeHigh1.Q.value = 1; 
+                filterNodeHigh2.Q.value = 1; 
+                filterNodeLow1.Q.value = 1; 
+                filterNodeLow2.Q.value = 1; 
+                
+                // フィルタOFF時はゲイン補正もなし(1.0)
+                if(gainNodeComp) gainNodeComp.gain.value = 1.0;
+            }
+        }
+        updateSliderHighlight();
+        saveSettings();
+    });
+    
+    // リセットボタン
+    document.getElementById('btnResetFilter').addEventListener('click', () => {
+        // 400Hz -> 8674, 900Hz -> 11021 (Scale: 20000)
+        filterMinRange.value = 8674;
+        filterMaxRange.value = 11021;
+        filterQRange.value = 1.0;
+        filterQVal.textContent = "1.0";
+        
+        updateSliderHighlight();
+        
+        // フィルタノードにも反映 (ONの場合のみ)
+        if (filterToggle.checked) {
+            if(filterNodeHigh1) {
+                filterNodeHigh1.frequency.value = 400;
+                filterNodeHigh2.frequency.value = 400;
+                filterNodeLow1.frequency.value = 900;
+                filterNodeLow2.frequency.value = 900;
+                
+                filterNodeHigh1.Q.value = 1;
+                filterNodeHigh2.Q.value = 1;
+                filterNodeLow1.Q.value = 1;
+                filterNodeLow2.Q.value = 1;
+                
+                if(gainNodeComp) gainNodeComp.gain.value = 1.0;
+            }
+        }
+        saveSettings();
+    });
+
 
     dotSlider.addEventListener('input', (e) => {
         dotThresholdTime = parseInt(e.target.value);
@@ -636,20 +1455,86 @@
         ctx.fillStyle = 'black';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+        // --- スペクトラムアナライザー描画 (背景) ---
+        const bufferLength = analyser.frequencyBinCount;
+        const sampleRate = audioCtx.sampleRate;
+        const freqResolution = sampleRate / (2 * bufferLength);
+        
+        ctx.fillStyle = '#555'; // 薄いグレーで周波数を表示
+
+        // 対数スケール用パラメータ (20Hz - 20000Hz)
+        const minLogFreq = 20;
+        const maxLogFreq = 20000;
+        const logMin = Math.log10(minLogFreq);
+        const logMax = Math.log10(maxLogFreq);
+        const logRange = logMax - logMin;
+
+        function getX(f) {
+            if (f <= minLogFreq) return 0;
+            if (f >= maxLogFreq) return canvas.width;
+            return ((Math.log10(f) - logMin) / logRange) * canvas.width;
+        }
+
+        // 曲線描画用のポイントを収集
+        const points = [];
+        // 左端
+        points.push({x: 0, y: canvas.height});
+
+        for(let i = 0; i < bufferLength; i++) {
+            const freq = i * freqResolution;
+            if (freq < minLogFreq) continue;
+            if (freq > maxLogFreq) break;
+            
+            const x = getX(freq);
+            const val = dataArray[i]; // 0-255
+            const y = canvas.height - (val / 255 * canvas.height);
+            
+            points.push({x, y});
+        }
+        // 右端
+        points.push({x: canvas.width, y: canvas.height});
+
+        if (points.length > 1) {
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+
+            // 中点連結法で滑らかに描画
+            for (let i = 0; i < points.length - 1; i++) {
+                const p0 = points[i];
+                const p1 = points[i + 1];
+                const midX = (p0.x + p1.x) / 2;
+                const midY = (p0.y + p1.y) / 2;
+                ctx.quadraticCurveTo(p0.x, p0.y, midX, midY);
+            }
+            
+            // 最後の点へ直線
+            const last = points[points.length - 1];
+            ctx.lineTo(last.x, last.y);
+            
+            // 閉じる
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.lineTo(0, canvas.height);
+            ctx.closePath();
+            ctx.fill();
+        }
+
         // 0-100 -> 0-255 変換
         const rawVal = parseInt(thresholdSlider.value);
         const threshold = rawVal * 2.55;
 
         const yThresh = canvas.height - (threshold / 255 * canvas.height);
+        
+        // しきい値の線
         ctx.strokeStyle = '#fff';
         ctx.beginPath();
         ctx.moveTo(0, yThresh);
         ctx.lineTo(canvas.width, yThresh);
         ctx.stroke();
 
-        // 現在の音量バー
+        // 現在の音量バー (半透明にして背景のスペアナを見せる)
         const barHeight = (displayVol / 255) * canvas.height;
-        ctx.fillStyle = displayVol > threshold ? '#0f0' : '#050'; // しきい値超えなら明るい緑
+        // しきい値超えなら緑、以下なら暗い緑 (共に半透明)
+        ctx.fillStyle = displayVol > threshold ? 'rgba(0, 255, 0, 0.4)' : 'rgba(0, 127, 0, 0.4)'; 
         ctx.fillRect(0, canvas.height - barHeight, canvas.width, barHeight);
 
         // --- デコード処理の核 ---
@@ -677,10 +1562,10 @@
             // 短点か長点か判定
             if (duration < dotThresholdTime) { 
                 currentMorseChar += ".";
-                document.getElementById('debugSignal').textContent += ".";
+                addDebugSignal(".");
             } else {
                 currentMorseChar += "-";
-                document.getElementById('debugSignal').textContent += "-";
+                addDebugSignal("-");
             }
         } else if (!isLoud && !signalState) {
             // 無音が続いている (Silence...)
@@ -690,6 +1575,27 @@
                 currentMorseChar = ""; // バッファをクリア
             }
         }
+    }
+    
+    // デバッグ表示用のヘルパー
+    function addDebugSignal(char) {
+        const span = document.createElement('span');
+        span.textContent = char;
+        document.getElementById('debugSignal').appendChild(span);
+    }
+
+    function markSignalsAsProcessed() {
+        const container = document.getElementById('debugSignal');
+        const signals = container.querySelectorAll('span:not(.signal-processed)');
+        signals.forEach(span => {
+            span.classList.add('signal-processed');
+        });
+        
+        // 文字区切りとしてスペースを挿入
+        const space = document.createElement('span');
+        space.innerHTML = '&nbsp;'; // 半角スペース
+        space.className = 'signal-processed';
+        container.appendChild(space);
     }
     
     function interpretMorse(code) {
@@ -702,7 +1608,7 @@
         } else {
             updateOutput("?");
         }
-        document.getElementById('debugSignal').textContent = "";
+        markSignalsAsProcessed();
     }
 
     function updateOutput(str) {
@@ -791,12 +1697,23 @@
             dashLength: dashLengthSlider.value,
             signalInterval: signalIntervalSlider.value,
             charSpace: charSpaceSlider.value,
-            freq: freqSlider.value,
+            // Hzを保存
+            freq: Math.round(logScale(parseInt(freqSlider.value), 20000, 20, 20000)),
             waveType: waveSelect.value,
             autoThreshold: autoThreshToggle.checked,
             threshold: thresholdSlider.value,
             dotDuration: dotSlider.value,
             charGap: charGapSlider.value,
+            // 入力ゲイン
+            inputVolume: (parseInt(inputVolumeRange.value) > 0) ? Math.round(logScale(parseInt(inputVolumeRange.value), 10000, 10, 3000)) : 0,
+            // 平滑化
+            smoothing: smoothingSlider.value,
+            // フィルタ設定
+            filterEnabled: filterToggle.checked,
+            // Hzを保存
+            filterMin: Math.round(logScale(parseInt(filterMinRange.value), 20000, 20, 20000)),
+            filterMax: Math.round(logScale(parseInt(filterMaxRange.value), 20000, 20, 20000)),
+            filterQ: filterQRange.value,
             // UIの状態 (メニューの開閉) を保存
             detailsSendOpen: detailsSend.open,
             detailsRecvOpen: detailsRecv.open
@@ -842,7 +1759,13 @@
             applyVal(dashLengthSlider, s.dashLength);
             applyVal(signalIntervalSlider, s.signalInterval);
             applyVal(charSpaceSlider, s.charSpace);
-            applyVal(freqSlider, s.freq);
+            
+            // Hz -> スライダー値
+            if (s.freq !== undefined) {
+                 freqSlider.value = Math.round(inverseLogScale(s.freq, 20000, 20, 20000));
+                 freqSlider.dispatchEvent(new Event('input'));
+            }
+            
             applyVal(waveSelect, s.waveType, 'change');
             
             applyVal(autoThreshToggle, s.autoThreshold, 'change');
@@ -853,6 +1776,42 @@
             applyVal(dotSlider, s.dotDuration);
             applyVal(charGapSlider, s.charGap);
 
+            // applyVal(inputVolumeRange, s.inputVolume);
+            if (s.inputVolume !== undefined) {
+                 const vol = parseInt(s.inputVolume);
+                 if (vol <= 0) {
+                     inputVolumeRange.value = 0;
+                 } else {
+                     inputVolumeRange.value = Math.round(inverseLogScale(vol, 10000, 10, 3000));
+                 }
+                 inputVolumeRange.dispatchEvent(new Event('input'));
+            }
+            applyVal(smoothingSlider, s.smoothing);
+
+            // フィルタ復元
+            applyVal(filterToggle, s.filterEnabled, 'change');
+            applyVal(filterQRange, s.filterQ);
+
+            // Hz -> スライダー値
+            if (s.filterMin !== undefined) {
+                filterMinRange.value = Math.round(inverseLogScale(s.filterMin, 20000, 20, 20000));
+            }
+            if (s.filterMax !== undefined) {
+                filterMaxRange.value = Math.round(inverseLogScale(s.filterMax, 20000, 20, 20000));
+            }
+            
+            // UI更新
+            updateSliderHighlight();
+            if (filterToggle.checked) {
+                // 値を設定したので、内部状態(Gain等)も更新させるためにイベント発火
+                filterMinRange.dispatchEvent(new Event('input'));
+                // filterMaxRange.dispatchEvent(new Event('input')); // 片方だけでupdateGain等は呼ばれるが念のため
+            }
+            
+            if(s.filterQ !== undefined) {
+                filterQVal.textContent = parseFloat(s.filterQ).toFixed(1);
+            }
+
             // UI状態の復元 (メニューの開閉)
             if (s.detailsSendOpen !== undefined) detailsSend.open = s.detailsSendOpen;
             if (s.detailsRecvOpen !== undefined) detailsRecv.open = s.detailsRecvOpen;
@@ -862,8 +1821,98 @@
         }
     }
 
+    // --- 数値直接入力機能 ---
+    function makeEditable(spanId, sliderId, options = {}) {
+        const span = document.getElementById(spanId);
+        const slider = document.getElementById(sliderId);
+        if (!span || !slider) return;
+
+        span.classList.add('editable-val');
+        span.title = "クリックして数値を直接入力";
+
+        span.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (span.querySelector('input')) return;
+
+            const currentText = span.textContent;
+            const currentVal = parseFloat(currentText);
+            
+            const input = document.createElement('input');
+            input.type = 'number'; 
+            input.value = isNaN(currentVal) ? 0 : currentVal;
+            input.className = 'editing-input';
+            input.style.width = Math.max(60, span.offsetWidth + 10) + "px";
+
+            const commit = () => {
+                let val = parseFloat(input.value);
+                if (isNaN(val)) {
+                    span.innerHTML = currentText; 
+                    return;
+                }
+                
+                let minLimit = options.min !== undefined ? options.min : parseFloat(slider.min);
+                let maxLimit = options.max !== undefined ? options.max : parseFloat(slider.max);
+
+                if (val < minLimit) val = minLimit;
+                if (val > maxLimit) val = maxLimit;
+                
+                let sliderVal = val;
+                if (options.toSlider) {
+                    sliderVal = options.toSlider(val);
+                }
+
+                slider.value = sliderVal;
+                slider.dispatchEvent(new Event('input'));
+                slider.dispatchEvent(new Event('change'));
+                
+                if (span.contains(input)) {
+                     span.textContent = val;
+                }
+            };
+
+            input.addEventListener('blur', commit);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') input.blur();
+            });
+            input.addEventListener('click', (e) => e.stopPropagation());
+
+            span.textContent = '';
+            span.appendChild(input);
+            input.focus();
+            input.select();
+        });
+    }
+    
+    makeEditable('volumeVal', 'volumeRange', { min: 0, max: 100 });
+    makeEditable('dotLengthVal', 'dotLengthRange', { min: 20, max: 500 });
+    makeEditable('dashLengthVal', 'dashLengthRange', { min: 40, max: 1500 });
+    makeEditable('signalIntervalVal', 'signalIntervalRange', { min: 20, max: 500 });
+    makeEditable('charSpaceVal', 'charSpaceRange', { min: 100, max: 2000 });
+    makeEditable('freqVal', 'freqRange', { 
+        min: 20, max: 20000, isLog: true,
+        toSlider: v => Math.round(inverseLogScale(v, 20000, 20, 20000))
+    });
+    makeEditable('thresholdVal', 'thresholdRange', { min: 0, max: 100 });
+    makeEditable('dotDurationVal', 'dotDurationRange', { min: 50, max: 500 });
+    makeEditable('charGapVal', 'charGapRange', { min: 100, max: 1000 });
+    makeEditable('inputVolumeVal', 'inputVolumeRange', { 
+        min: 0, max: 3000, isLog: true,
+        toSlider: v => (v <= 0) ? 0 : Math.round(inverseLogScale(v, 10000, 10, 3000))
+    });
+    makeEditable('smoothingVal', 'smoothingRange', { min: 0, max: 0.95 });
+    makeEditable('filterMinVal', 'filterMinRange', { 
+        min: 20, max: 20000, isLog: true,
+        toSlider: v => Math.round(inverseLogScale(v, 20000, 20, 20000))
+    });
+    makeEditable('filterMaxVal', 'filterMaxRange', { 
+        min: 20, max: 20000, isLog: true,
+        toSlider: v => Math.round(inverseLogScale(v, 20000, 20, 20000))
+    });
+    makeEditable('filterQVal', 'filterQRange', { min: 0.1, max: 30 });
+
     // ページ読み込み時に実行
     loadSettings();
+    updateReferenceTable();
 
     // 変更監視対象
     const inputsToSave = [
@@ -871,11 +1920,253 @@
         document.getElementById('sendAudioToggle'),
         document.getElementById('sendFlashToggle'),
         volumeSlider, dotLengthSlider, dashLengthSlider, signalIntervalSlider, charSpaceSlider, freqSlider, waveSelect,
-        autoThreshToggle, thresholdSlider, dotSlider, charGapSlider
+        autoThreshToggle, thresholdSlider, dotSlider, charGapSlider, inputVolumeRange, smoothingSlider,
+        filterToggle, filterMinRange, filterMaxRange, filterQRange
     ];
 
     inputsToSave.forEach(el => {
         el.addEventListener('change', saveSettings);
+    });
+
+    // --- 6. エクスポート機能 (WAV書き出し) ---
+    const btnExport = document.getElementById('btnExport');
+
+    // AudioBufferをWAV形式のBlobに変換する関数
+    function audioBufferToWav(buffer) {
+        const numOfChan = buffer.numberOfChannels;
+        const length = buffer.length * numOfChan * 2 + 44;
+        const bufferArr = new ArrayBuffer(length);
+        const view = new DataView(bufferArr);
+        const channels = [];
+        let i;
+        let sample;
+        let offset = 0;
+        let pos = 0;
+
+        // --- RIFF Chunk Descriptor ---
+        writeString(view, 0, 'RIFF');
+        view.setUint32(4, 36 + buffer.length * numOfChan * 2, true);
+        writeString(view, 8, 'WAVE');
+
+        // --- fmt Sub-chunk ---
+        writeString(view, 12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, 1, true); // PCM
+        view.setUint16(22, numOfChan, true);
+        view.setUint32(24, buffer.sampleRate, true);
+        view.setUint32(28, buffer.sampleRate * 2 * numOfChan, true);
+        view.setUint16(32, numOfChan * 2, true);
+        view.setUint16(34, 16, true); // 16bit
+
+        // --- data Sub-chunk ---
+        writeString(view, 36, 'data');
+        view.setUint32(40, buffer.length * numOfChan * 2, true);
+
+        // データを書き込み (16bit PCM)
+        for(i = 0; i < buffer.numberOfChannels; i++)
+            channels.push(buffer.getChannelData(i));
+
+        offset = 44;
+        while(pos < buffer.length) {
+            for(i = 0; i < numOfChan; i++) {
+                sample = Math.max(-1, Math.min(1, channels[i][pos])); // クリップ
+                sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF) | 0;
+                view.setInt16(offset, sample, true);
+                offset += 2;
+            }
+            pos++;
+        }
+
+        return new Blob([view], { type: 'audio/wav' });
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+    }
+
+    // テキストから総再生時間を計算し、OfflineAudioContextでレンダリングする
+    async function renderMorseAudio(text) {
+        // パラメータ取得
+        const dotMs = dotLengthMs;
+        const dashMs = dashLengthMs;
+        const sigIntMs = signalIntervalMs;
+        const charSpMs = charSpacingMs;
+        const freq = Math.round(logScale(parseInt(freqSlider.value), 20000, 20, 20000));
+        const vol = parseInt(volumeSlider.value) / 100;
+        const type = waveSelect.value;
+        const dict = (currentMode === 'JA') ? MORSE_CODE_JA : MORSE_CODE_EN;
+
+        // テキストの前処理
+        let processedText = text;
+        if (currentMode === 'JA') {
+            processedText = toKatakana(text).normalize('NFD');
+        } else {
+            processedText = text.toUpperCase();
+        }
+
+        // 1. まず総時間を計算する (ミリ秒)
+        let totalTimeMs = 0;
+        
+        // 解析用の仮ループ
+        for (let char of processedText) {
+            if (char === '\n') continue;
+            if (char === '\u3099') char = '゛';
+            if (char === '\u309A') char = '゜';
+
+            const code = dict[char];
+            if (code) {
+                for (let signal of code) {
+                    if (signal === '.') totalTimeMs += dotMs;
+                    else if (signal === '-') totalTimeMs += dashMs;
+                    totalTimeMs += sigIntMs;
+                }
+                totalTimeMs += charSpMs;
+            } else if (char === ' ' || char === '/' || char === '　') {
+                totalTimeMs += charSpMs * 2;
+                totalTimeMs += charSpMs;
+            }
+        }
+        
+        // バッファに余裕を持たせる (+1秒)
+        totalTimeMs += 1000;
+
+        // 2. レンダリング準備
+        const sampleRate = 44100;
+        // OfflineAudioContext作成
+        // (長さが0だとエラーになるので最低限確保)
+        const durationSec = Math.max(1, totalTimeMs / 1000);
+        const offlineCtx = new OfflineAudioContext(1, sampleRate * durationSec, sampleRate);
+        
+        // オシレーターとゲインの準備 (1つのオシレーターを使い回すのではなく、都度作るか、Gainで制御するか)
+        // ここでは1つのオシレーターをずっと回して、GainでEnvelope制御する方式が楽だが、
+        // 厳密なOn/Offをするため、GainNodeのsetValueAtTimeを使う。
+        
+        const osc = offlineCtx.createOscillator();
+        const gain = offlineCtx.createGain();
+        
+        osc.type = type;
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(offlineCtx.destination);
+        
+        // 初期状態はミュート
+        gain.gain.setValueAtTime(0, 0);
+        
+        osc.start(0);
+
+        // 3. スケジューリング
+        let currentTime = 0; // 秒単位
+
+        // アタック・リリース時間 (クリックノイズ防止)
+        const rampTime = 0.005; 
+
+        for (let char of processedText) {
+            if (char === '\n') continue;
+            if (char === '\u3099') char = '゛';
+            if (char === '\u309A') char = '゜';
+
+            const code = dict[char];
+            if (code) {
+                for (let signal of code) {
+                    const durMs = (signal === '.') ? dotMs : dashMs;
+                    const durSec = durMs / 1000;
+                    
+                    // 音ON
+                    // ノイズ防止のため、0 -> vol へ一瞬で上げるのではなく ramp を使う
+                    gain.gain.setTargetAtTime(vol, currentTime, rampTime);
+                    
+                    // 音OFF予定時刻
+                    const endTime = currentTime + durSec;
+                    gain.gain.setTargetAtTime(0, endTime - rampTime, rampTime); // 早めに減衰開始
+
+                    // 次の開始位置へ
+                    currentTime += durSec;
+                    currentTime += (sigIntMs / 1000);
+                }
+                currentTime += (charSpMs / 1000);
+            } else if (char === ' ' || char === '/' || char === '　') {
+                currentTime += ((charSpMs * 2) / 1000);
+                currentTime += (charSpMs / 1000);
+            }
+        }
+        
+        // 少し待ってから停止
+        osc.stop(durationSec);
+
+        // 4. レンダリング実行
+        const renderedBuffer = await offlineCtx.startRendering();
+        return renderedBuffer;
+    }
+
+    btnExport.addEventListener('click', async () => {
+        const text = document.getElementById('inputText').value;
+        if (!text) return; // 空なら何もしない
+
+        const originalText = btnExport.textContent;
+        btnExport.textContent = "生成中...";
+        btnExport.disabled = true;
+
+        try {
+            // ファイル名の生成
+            // 1. 1行目を取得
+            let filenameBase = text.split('\n')[0];
+            // 2. 20文字制限
+            if (filenameBase.length > 20) {
+                filenameBase = filenameBase.substring(0, 20);
+            }
+            // 3. ファイル名に使えない文字を置換 (Windows等でのエラー防止)
+            filenameBase = filenameBase.replace(/[\\/:*?"<>|]/g, '_');
+            // トリムして、空文字になってしまった場合のフォールバック
+            filenameBase = filenameBase.trim();
+            if (!filenameBase) filenameBase = "morse_code";
+
+            const fileName = `${filenameBase}_morse-app.wav`;
+
+            // レンダリング
+            const audioBuffer = await renderMorseAudio(text);
+            const wavBlob = audioBufferToWav(audioBuffer);
+
+            // 保存ダイアログ (File System Access API)
+            // 対応していないブラウザではフォールバック
+            if (window.showSaveFilePicker) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: fileName,
+                        types: [{
+                            description: 'WAV Audio File',
+                            accept: { 'audio/wav': ['.wav'] },
+                        }],
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(wavBlob);
+                    await writable.close();
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error(err);
+                        alert("保存に失敗しました。");
+                    }
+                }
+            } else {
+                // 古い方式 (ダウンロードリンク)
+                const url = URL.createObjectURL(wavBlob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+        } catch (e) {
+            console.error(e);
+            alert("エクスポート中にエラーが発生しました。");
+        } finally {
+            btnExport.textContent = originalText;
+            btnExport.disabled = false;
+        }
     });
 
     // メニューの開閉(toggle)も保存のトリガーにする
