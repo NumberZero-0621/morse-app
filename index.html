@@ -94,7 +94,7 @@
     </div>
     
     <div>
-        <textarea id="inputText" placeholder="ここに入力 (例: SOS)"></textarea>
+        <textarea id="inputText" placeholder="ここに入力 (例: SOS)  ※小文字も対応"></textarea>
         <br>
         <div style="display: flex; align-items: center; gap: 24px; margin-bottom: 8px;">
              <label style="font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 8px;">
@@ -119,13 +119,30 @@
             <summary style="cursor: pointer; outline: none; color: #aaa;">詳細設定 (送信パラメータ)</summary>
             <div style="margin-top: 10px; padding-left: 10px;">
                 
-                <label>信号の速度 (短点の長さ ms)</label>
+                <label>短点の長さ (ms)</label>
                 <div style="display: flex; align-items: center;">
-                    <input type="range" id="speedRange" min="40" max="300" step="10" value="100" style="flex: 1;">
-                    <span id="speedVal" style="width: 40px; text-align: right;">100</span>
+                    <input type="range" id="dotLengthRange" min="20" max="500" step="10" value="80" style="flex: 1;">
+                    <span id="dotLengthVal" style="width: 40px; text-align: right;">80</span>
                 </div>
                 
                 <br>
+
+                <label>長点の長さ (ms)</label>
+                <div style="display: flex; align-items: center;">
+                    <input type="range" id="dashLengthRange" min="40" max="1500" step="10" value="240" style="flex: 1;">
+                    <span id="dashLengthVal" style="width: 40px; text-align: right;">240</span>
+                </div>
+
+                <br>
+
+                <label>信号の速度 (ms)</label>
+                <div style="display: flex; align-items: center;">
+                    <input type="range" id="signalIntervalRange" min="20" max="500" step="10" value="80" style="flex: 1;">
+                    <span id="signalIntervalVal" style="width: 40px; text-align: right;">80</span>
+                </div>
+                <small style="color: #777;">1つの文字の中での各点の間の空白時間</small>
+
+                <br><br>
 
                 <label>文字間の空白時間 (ms)</label>
                 <div style="display: flex; align-items: center;">
@@ -264,11 +281,13 @@
             }
             // プレースホルダー変更
             document.getElementById('inputText').placeholder = 
-                (currentMode === 'JA') ? "ここに入力 (例: タスケテ)" : "ここに入力 (例: SOS)";
+                (currentMode === 'JA') ? "ここに入力 (例: タスケテ)  ※ひらがなも対応" : "ここに入力 (例: SOS)  ※小文字も対応";
         });
     });
 
-    let dotTimeMs = 100; // 短点の長さ(ms) - 初期値
+    let dotLengthMs = 80;
+    let dashLengthMs = 240;
+    let signalIntervalMs = 80;
     let charSpacingMs = 300; // 文字間の空白 - 初期値
     let audioCtx = null;
 
@@ -280,8 +299,12 @@
     });
 
     // 送信設定 (速度・周波数・音色)
-    const speedSlider = document.getElementById('speedRange');
-    const speedDisp = document.getElementById('speedVal');
+    const dotLengthSlider = document.getElementById('dotLengthRange');
+    const dotLengthDisp = document.getElementById('dotLengthVal');
+    const dashLengthSlider = document.getElementById('dashLengthRange');
+    const dashLengthDisp = document.getElementById('dashLengthVal');
+    const signalIntervalSlider = document.getElementById('signalIntervalRange');
+    const signalIntervalDisp = document.getElementById('signalIntervalVal');
     const charSpaceSlider = document.getElementById('charSpaceRange');
     const charSpaceDisp = document.getElementById('charSpaceVal');
     const freqSlider = document.getElementById('freqRange');
@@ -290,9 +313,17 @@
     const sendAudioToggle = document.getElementById('sendAudioToggle');
     const sendFlashToggle = document.getElementById('sendFlashToggle');
 
-    speedSlider.addEventListener('input', (e) => {
-        dotTimeMs = parseInt(e.target.value);
-        speedDisp.textContent = dotTimeMs;
+    dotLengthSlider.addEventListener('input', (e) => {
+        dotLengthMs = parseInt(e.target.value);
+        dotLengthDisp.textContent = dotLengthMs;
+    });
+    dashLengthSlider.addEventListener('input', (e) => {
+        dashLengthMs = parseInt(e.target.value);
+        dashLengthDisp.textContent = dashLengthMs;
+    });
+    signalIntervalSlider.addEventListener('input', (e) => {
+        signalIntervalMs = parseInt(e.target.value);
+        signalIntervalDisp.textContent = signalIntervalMs;
     });
     charSpaceSlider.addEventListener('input', (e) => {
         charSpacingMs = parseInt(e.target.value);
@@ -393,13 +424,13 @@
                         if (!isSending) break;
 
                         if (signal === '.') {
-                            await playTone(dotTimeMs);
+                            await playTone(dotLengthMs);
                         } else if (signal === '-') {
-                            await playTone(dotTimeMs * 3);
+                            await playTone(dashLengthMs);
                         }
                         
                         if (!isSending) break;
-                        await sleep(dotTimeMs); // 信号間の休止
+                        await sleep(signalIntervalMs); // 信号間の休止
                     }
                 } else if (char === ' ' || char === '/' || char === '　') {
                     if (!isSending) break;
@@ -756,7 +787,9 @@
             sendAudio: document.getElementById('sendAudioToggle').checked,
             sendFlash: document.getElementById('sendFlashToggle').checked,
             volume: volumeSlider.value,
-            speed: speedSlider.value,
+            dotLength: dotLengthSlider.value,
+            dashLength: dashLengthSlider.value,
+            signalInterval: signalIntervalSlider.value,
             charSpace: charSpaceSlider.value,
             freq: freqSlider.value,
             waveType: waveSelect.value,
@@ -805,7 +838,9 @@
             applyVal(document.getElementById('sendFlashToggle'), s.sendFlash, 'change');
             
             applyVal(volumeSlider, s.volume);
-            applyVal(speedSlider, s.speed);
+            applyVal(dotLengthSlider, s.dotLength);
+            applyVal(dashLengthSlider, s.dashLength);
+            applyVal(signalIntervalSlider, s.signalInterval);
             applyVal(charSpaceSlider, s.charSpace);
             applyVal(freqSlider, s.freq);
             applyVal(waveSelect, s.waveType, 'change');
@@ -835,7 +870,7 @@
         ...document.querySelectorAll('input[name="mode"]'),
         document.getElementById('sendAudioToggle'),
         document.getElementById('sendFlashToggle'),
-        volumeSlider, speedSlider, charSpaceSlider, freqSlider, waveSelect,
+        volumeSlider, dotLengthSlider, dashLengthSlider, signalIntervalSlider, charSpaceSlider, freqSlider, waveSelect,
         autoThreshToggle, thresholdSlider, dotSlider, charGapSlider
     ];
 
