@@ -5,13 +5,90 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>モールス信号送受信機</title>
     <style>
+        :root {
+            /* Default Dark Theme */
+            --bg-body: #222;
+            --text-main: #0f0;
+            --text-sub: #aaa;
+            --text-dim: #777;
+            --text-input: #fff;
+            
+            --bg-panel: #333;
+            --bg-panel-dark: #2a2a2a;
+            --bg-input: #333;
+            --bg-menu: #2a2a2a;
+            
+            --border-color: #555;
+            --border-highlight: #0f0;
+            
+            --accent-color: #005500;
+            --accent-hover: #007700;
+            --accent-disabled-bg: #444;
+            --accent-disabled-text: #888;
+            
+            --slider-track: #555;
+            --slider-highlight: #007700;
+            --slider-thumb: #0f0;
+            --slider-thumb-border: #003300;
+            
+            --visualizer-bg: #000;
+            --visualizer-border: #0f0;
+            --visualizer-bar: #555;
+            
+            --morse-item-bg: #2a2a2a;
+            --morse-item-border: #444;
+            --morse-char-color: #fff;
+            --morse-code-color: #0f0;
+
+            --signal-color: #0f0;
+            --signal-processed: #fff;
+        }
+
+        body.light-theme {
+            --bg-body: #f4f4f4;
+            --text-main: #0c8014;
+            --text-sub: #555;
+            --text-dim: #888;
+            --text-input: #000;
+            
+            --bg-panel: #fff;
+            --bg-panel-dark: #e8e8e8;
+            --bg-input: #fff;
+            --bg-menu: #fff;
+            
+            --border-color: #ccc;
+            --border-highlight: #28a745;
+            
+            --accent-color: #28a745;
+            --accent-hover: #218838;
+            --accent-disabled-bg: #e2e6ea;
+            --accent-disabled-text: #6c757d;
+            
+            --slider-track: #000;
+            --slider-highlight: #28a745;
+            --slider-thumb: #28a745;
+            --slider-thumb-border: #fff;
+            
+            --visualizer-bg: #fff;
+            --visualizer-border: #28a745;
+            --visualizer-bar: #ccc;
+            
+            --morse-item-bg: #fff;
+            --morse-item-border: #dee2e6;
+            --morse-char-color: #000;
+            --morse-code-color: #28a745;
+            
+            --signal-color: #28a745;
+            --signal-processed: #555;
+        }
+
         body {
             font-family: sans-serif;
-            background-color: #222;
-            color: #0f0; /* レトロな端末感 */
+            background-color: var(--bg-body);
+            color: var(--text-main);
             text-align: center;
             padding: 20px;
-            transition: background-color 0.1s;
+            transition: background-color 0.1s, color 0.1s;
         }
         h1 { margin-bottom: 10px; font-size: 1.5rem; }
         .container { max-width: 600px; margin: 0 auto; }
@@ -23,9 +100,9 @@
             min-height: 80px;
             font-size: 18px;
             margin-bottom: 10px;
-            background: #333;
-            color: #fff;
-            border: 1px solid #555;
+            background: var(--bg-input);
+            color: var(--text-input);
+            border: 1px solid var(--border-color);
             resize: none; /* 手動リサイズ禁止 */
             overflow-y: hidden; /* スクロールバー非表示 */
             box-sizing: border-box;
@@ -37,21 +114,21 @@
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
-            background: #005500;
+            background: var(--accent-color);
             color: #fff;
             border: none;
             border-radius: 5px;
             margin: 5px;
         }
-        button:active { background: #007700; }
-        button:disabled { background: #444; color: #888; }
+        button:active { background: var(--accent-hover); }
+        button:disabled { background: var(--accent-disabled-bg); color: var(--accent-disabled-text); }
 
         /* 受信モニター */
         #visualizer {
             width: 100%;
             height: 100px;
-            background: #000;
-            border: 1px solid #0f0;
+            background: var(--visualizer-bg);
+            border: 1px solid var(--visualizer-border);
             margin-top: 20px;
         }
         #decodedText {
@@ -60,13 +137,13 @@
             min-height: 40px;
             margin-top: 10px;
             word-wrap: break-word;
-            border-bottom: 1px solid #444;
+            border-bottom: 1px solid var(--border-color);
         }
         
         /* 調整スライダー */
         .controls {
             margin: 15px 0;
-            background: #333;
+            background: var(--bg-panel);
             padding: 10px;
             border-radius: 5px;
         }
@@ -101,10 +178,10 @@
         .range-slider-container input[type="range"]::-webkit-slider-thumb {
             pointer-events: auto; /* つまみだけ操作可能にする */
             -webkit-appearance: none;
-            width: 24px;
-            height: 24px;
-            background: #0f0;
-            border: 2px solid #003300;
+            width: 16px;
+            height: 16px;
+            background: var(--slider-thumb);
+            /* border: 2px solid var(--slider-thumb-border); */
             border-radius: 50%;
             cursor: grab;
             /* margin-top: -9px; 位置調整: 線の中央に合わせる */
@@ -116,8 +193,8 @@
             pointer-events: auto;
             width: 24px;
             height: 24px;
-            background: #0f0;
-            border: 2px solid #003300;
+            background: var(--slider-thumb);
+            border: 2px solid var(--slider-thumb-border);
             border-radius: 50%;
             cursor: grab;
             z-index: 4;
@@ -143,7 +220,7 @@
             transform: translateY(-50%);
             width: 100%;
             height: 6px;
-            background: #555;
+            background: var(--slider-track);
             border-radius: 3px;
             z-index: 1;
         }
@@ -153,7 +230,7 @@
             top: 50%;
             transform: translateY(-50%);
             height: 6px;
-            background: #007700;
+            background: var(--slider-highlight);
             z-index: 2;
             border-radius: 3px;
         }
@@ -165,25 +242,25 @@
             margin-bottom: 12px; /* 行ごとの区切り */
         }
         .morse-item {
-            background: #2a2a2a;
+            background: var(--morse-item-bg);
             padding: 5px;
-            border: 1px solid #444;
+            border: 1px solid var(--morse-item-border);
             border-radius: 4px;
             font-size: 0.8rem;
-            color: #ddd;
+            color: var(--text-sub);
         }
-        .morse-char { font-weight: bold; color: #fff; display: block; }
-        .morse-code { color: #0f0; display: block; font-family: monospace; }
+        .morse-char { font-weight: bold; color: var(--morse-char-color); display: block; }
+        .morse-code { color: var(--morse-code-color); display: block; font-family: monospace; }
         
         /* 受信信号のスタイル (送信信号表示も共通化) */
         #debugSignal span, #sentSignalDisplay span { 
             transition: color 0.1s; 
             margin-right: 1px; 
-            color: #0f0; /* デフォルトは緑 */
+            color: var(--signal-color); /* デフォルトは緑 */
         }
         
         /* 処理済み、または送信完了は白 (!importantでフラッシュ時の色反転を阻止) */
-        .signal-processed { color: #fff !important; }
+        .signal-processed { color: var(--signal-processed) !important; }
 
         #debugSignal, #sentSignalDisplay {
             font-size: 20px;
@@ -197,36 +274,36 @@
         #sentSignalDisplay {
             text-align: left;
             margin-bottom: 10px;
-            background: #222;
-            border-bottom: 1px solid #444;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border-color);
             padding: 5px;
         }
 
         /* ドラッグ&ドロップ中のスタイル */
         body.dragging {
-            background-color: #1a1a1a;
-            outline: 4px dashed #0f0; /* レイアウトに影響しない枠線 */
+            background-color: var(--bg-panel-dark);
+            outline: 4px dashed var(--border-highlight); /* レイアウトに影響しない枠線 */
             outline-offset: -10px;
         }
 
         /* 数値直接入力用 */
         .editable-val {
             cursor: pointer;
-            border-bottom: 1px dashed #666;
+            border-bottom: 1px dashed var(--text-dim);
             min-width: 30px;
             display: inline-block;
             text-align: right;
             transition: border-color 0.2s, color 0.2s;
         }
         .editable-val:hover {
-            color: #fff;
-            border-bottom-color: #fff;
+            color: var(--text-main);
+            border-bottom-color: var(--text-main);
         }
         .editing-input {
             width: 60px;
-            background: #222;
-            color: #fff;
-            border: 1px solid #0f0;
+            background: var(--bg-input);
+            color: var(--text-input);
+            border: 1px solid var(--border-highlight);
             font-size: 0.9rem;
             text-align: right;
             padding: 0 5px;
@@ -236,7 +313,20 @@
 </head>
 <body>
 
-<div class="container">
+<div class="container" style="position: relative;">
+    <div style="position: absolute; top: 0; right: 0; z-index: 100;">
+        <button id="btnSettings" style="background: transparent; color: var(--text-sub); border: 1px solid var(--border-color); padding: 5px 10px; font-size: 1.2rem; cursor: pointer;">⚙️</button>
+        <div id="settingsMenu" style="display: none; position: absolute; right: 0; top: 40px; background: var(--bg-menu); border: 1px solid var(--border-color); padding: 15px; border-radius: 5px; width: 200px; text-align: left; box-shadow: 0 4px 10px rgba(0,0,0,0.5);">
+            <h4 style="margin: 0 0 10px 0; color: var(--text-main); font-size: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">設定</h4>
+            <div style="margin-bottom: 10px;">
+                <label style="color: var(--text-main); display: block; margin-bottom: 5px; font-size: 0.9rem;">テーマ</label>
+                <select id="themeSelect" style="width: 100%; padding: 5px; background: var(--bg-input); color: var(--text-input); border: 1px solid var(--border-color); border-radius: 3px;">
+                    <option value="dark">ダーク (Default)</option>
+                    <option value="light">ライト</option>
+                </select>
+            </div>
+        </div>
+    </div>
     <h1>モールス送受信機</h1>
     
     <div style="margin-bottom: 15px;">
@@ -272,8 +362,8 @@
             <span id="volumeVal">50</span>
         </div>
 
-        <details id="detailsSend" style="margin-top: 10px; text-align: left; background: #2a2a2a; padding: 10px; border-radius: 5px;">
-            <summary style="cursor: pointer; outline: none; color: #aaa;">詳細設定 (送信パラメータ)</summary>
+        <details id="detailsSend" style="margin-top: 10px; text-align: left; background: var(--bg-panel-dark); padding: 10px; border-radius: 5px;">
+            <summary style="cursor: pointer; outline: none; color: var(--text-sub);">詳細設定 (送信パラメータ)</summary>
             <div style="margin-top: 10px; padding-left: 10px;">
                 
                 <label>短点の長さ (ms)</label>
@@ -297,7 +387,7 @@
                     <input type="range" id="signalIntervalRange" min="20" max="500" step="10" value="80" style="flex: 1;">
                     <span id="signalIntervalVal" style="width: 40px; text-align: right;">80</span>
                 </div>
-                <small style="color: #777;">1つの文字の中での各点の間の空白時間</small>
+                <small style="color: var(--text-dim);">1つの文字の中での各点の間の空白時間</small>
 
                 <br><br>
 
@@ -318,7 +408,7 @@
                 <br>
 
                 <label>音色</label>
-                <select id="waveType" style="width: 100%; padding: 5px; background: #333; color: #fff; border: 1px solid #555;">
+                <select id="waveType" style="width: 100%; padding: 5px; background: var(--bg-input); color: var(--text-input); border: 1px solid var(--border-color);">
                     <option value="square" selected>矩形波 (Square) - デフォルト</option>
                     <option value="sine">正弦波 (Sine) - 柔らかい音</option>
                     <option value="sawtooth">ノコギリ波 (Sawtooth) - 鋭い音</option>
@@ -329,7 +419,7 @@
         </details>
     </div>
 
-    <hr style="border-color:#444; margin:20px 0;">
+    <hr style="border-color:var(--border-color); margin:20px 0;">
 
     <div>
         <div style="display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 10px;">
@@ -339,8 +429,8 @@
         </div>
         
         <!-- 読み込み用プレイヤー (初期非表示) -->
-        <div id="audioPlayerContainer" style="display:none; width: 100%; margin-bottom: 10px; background: #222; padding: 5px; border: 1px solid #444; border-radius: 5px;">
-            <div style="text-align: left; color: #ccc; font-size: 0.8rem; margin-bottom: 2px;">ファイル再生: <span id="fileNameDisplay" style="color: #fff;"></span></div>
+        <div id="audioPlayerContainer" style="display:none; width: 100%; margin-bottom: 10px; background: var(--bg-panel-dark); padding: 5px; border: 1px solid var(--border-color); border-radius: 5px;">
+            <div style="text-align: left; color: var(--text-sub); font-size: 0.8rem; margin-bottom: 2px;">ファイル再生: <span id="fileNameDisplay" style="color: var(--text-main);"></span></div>
             <audio id="audioPlayer" controls style="width: 100%; height: 30px;"></audio>
         </div>
 
@@ -355,8 +445,8 @@
             <span id="thresholdVal">40</span>
         </div>
 
-        <details id="detailsRecv" style="margin-top: 10px; text-align: left; background: #2a2a2a; padding: 10px; border-radius: 5px;">
-            <summary style="cursor: pointer; outline: none; color: #aaa;">詳細設定 (認識パラメータ)</summary>
+        <details id="detailsRecv" style="margin-top: 10px; text-align: left; background: var(--bg-panel-dark); padding: 10px; border-radius: 5px;">
+            <summary style="cursor: pointer; outline: none; color: var(--text-sub);">詳細設定 (認識パラメータ)</summary>
             <div style="margin-top: 10px; padding-left: 10px;">
                 
                 <label>短点/長点の境界 (ms)</label>
@@ -364,7 +454,7 @@
                     <input type="range" id="dotDurationRange" min="50" max="500" step="10" value="200" style="flex: 1;">
                     <span id="dotDurationVal" style="width: 40px; text-align: right;">200</span>
                 </div>
-                <small style="color: #777;">これより短い音は「・」、長い音は「－」と判定</small>
+                <small style="color: var(--text-dim);">これより短い音は「・」、長い音は「－」と判定</small>
 
                 <br><br>
 
@@ -373,7 +463,7 @@
                     <input type="range" id="charGapRange" min="100" max="1000" step="10" value="300" style="flex: 1;">
                     <span id="charGapVal" style="width: 40px; text-align: right;">300</span>
                 </div>
-                <small style="color: #777;">これ以上の無音が続くと文字確定</small>
+                <small style="color: var(--text-dim);">これ以上の無音が続くと文字確定</small>
 
                 <br><br>
 
@@ -382,7 +472,7 @@
                     <input type="range" id="inputVolumeRange" min="0" max="10000" step="1" value="4036" style="flex: 1;">
                     <span id="inputVolumeVal" style="width: 40px; text-align: right;">100</span>
                 </div>
-                <small style="color: #777;">入力信号の大きさを調整 (100が標準、最大3000%まで増幅可)</small>
+                <small style="color: var(--text-dim);">入力信号の大きさを調整 (100が標準、最大3000%まで増幅可)</small>
 
                 <br><br>
 
@@ -391,21 +481,21 @@
                     <input type="range" id="smoothingRange" min="0" max="0.95" step="0.05" value="0.1" style="flex: 1;">
                     <span id="smoothingVal" style="width: 40px; text-align: right;">0.2</span>
                 </div>
-                <small style="color: #777;">0に近いほど機敏に反応します (推奨: 0.2)</small>
+                <small style="color: var(--text-dim);">0に近いほど機敏に反応します (推奨: 0.2)</small>
 
                 <br>
-                <hr style="border-color:#444; margin:15px 0;">
+                <hr style="border-color:var(--border-color); margin:15px 0;">
 
                 <label style="display: flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer;">
                     <input type="checkbox" id="filterToggle" style="width: 18px; height: 18px;">
                     周波数フィルタ (帯域制限)
                 </label>
                 <div style="margin-top: 5px; margin-bottom: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; color: #ccc; margin-bottom: 5px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; color: var(--text-sub); margin-bottom: 5px;">
                         <div>
                             Min: <span id="filterMinVal">400</span> / Max: <span id="filterMaxVal">900</span> Hz
                         </div>
-                        <button id="btnResetFilter" style="padding: 2px 10px; font-size: 0.8rem; margin: 0; background: #555; border: 1px solid #777;">リセット</button>
+                        <button id="btnResetFilter" style="padding: 2px 10px; font-size: 0.8rem; margin: 0; background: var(--bg-panel-dark); color: var(--text-sub); border: 1px solid var(--border-color);">リセット</button>
                     </div>
                     <div class="range-slider-container" id="filterSliderContainer">
                         <div class="slider-track"></div>
@@ -413,7 +503,7 @@
                         <input type="range" id="filterMinRange" min="0" max="20000" step="1" value="8674">
                         <input type="range" id="filterMaxRange" min="0" max="20000" step="1" value="11021">
                     </div>
-                    <small style="color: #777;">指定した範囲外の周波数をカットします (ノイズ対策)</small>
+                    <small style="color: var(--text-dim);">指定した範囲外の周波数をカットします (ノイズ対策)</small>
 
                     <br><br>
                     <label>減衰強度 (Q値)</label>
@@ -421,14 +511,14 @@
                         <input type="range" id="filterQRange" min="0.1" max="30" step="0.1" value="1" style="flex: 1;">
                         <span id="filterQVal" style="width: 40px; text-align: right;">1.0</span>
                     </div>
-                    <small style="color: #777;">値を大きくすると境界が鋭くなりますが、上げすぎると金属的な響きになります。</small>
+                    <small style="color: var(--text-dim);">値を大きくすると境界が鋭くなりますが、上げすぎると金属的な響きになります。</small>
                 </div>
 
             </div>
         </details>
 
         <canvas id="visualizer"></canvas>
-        <div style="position: relative; width: 100%; height: 20px; color: #aaa; font-size: 0.75rem; margin-top: 2px; margin-bottom: 5px;">
+        <div style="position: relative; width: 100%; height: 20px; color: var(--text-sub); font-size: 0.75rem; margin-top: 2px; margin-bottom: 5px;">
             <span style="position: absolute; left: 0%;">20Hz</span>
             <span style="position: absolute; left: 13.3%; transform: translateX(-50%);">50</span>
             <span style="position: absolute; left: 23.3%; transform: translateX(-50%);">100</span>
@@ -440,15 +530,15 @@
             <span style="position: absolute; left: 90.0%; transform: translateX(-50%);">10k</span>
             <span style="position: absolute; right: 0%;">20k</span>
         </div>
-        <div style="text-align: left; color: #aaa; font-size: 0.8rem;">受信結果:</div>
+        <div style="text-align: left; color: var(--text-sub); font-size: 0.8rem;">受信結果:</div>
         <div id="decodedText">Waiting...</div>
         <div id="debugSignal"></div>
     </div>
 
-    <hr style="border-color:#444; margin:20px 0;">
+    <hr style="border-color:var(--border-color); margin:20px 0;">
 
     <div id="referenceSection" style="text-align: left;">
-        <h3 style="margin-top: 0; font-size: 1.2rem; color: #aaa;">モールス信号 対応表</h3>
+        <h3 style="margin-top: 0; font-size: 1.2rem; color: var(--text-sub);">モールス信号 対応表</h3>
         <div id="morseReference"></div>
     </div>
 </div>
@@ -535,6 +625,12 @@
             document.getElementById('inputText').placeholder = 
                 (currentMode === 'JA') ? "ここに入力 (例: タスケテ)  ※ひらがなも対応" : "ここに入力 (例: SOS)  ※小文字も対応";
             
+            // 受信待機中の表示を切り替え
+            const decodedTextEl = document.getElementById('decodedText');
+            if (decodedTextEl.textContent === "Waiting..." || decodedTextEl.textContent === "待機中...") {
+                resetDecodedText();
+            }
+
             updateReferenceTable();
         });
     });
@@ -815,7 +911,11 @@
 
     // しきい値の線だけを描画する関数 (停止中用)
     function drawThresholdOnly() {
-        ctx.fillStyle = 'black';
+        const style = getComputedStyle(document.body);
+        const bgCol = style.getPropertyValue('--visualizer-bg').trim();
+        const borderCol = style.getPropertyValue('--visualizer-border').trim();
+
+        ctx.fillStyle = bgCol;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         // 0-100 を 0-255 に変換
@@ -823,15 +923,14 @@
         const threshold = rawVal * 2.55; 
         
         const yThresh = canvas.height - (threshold / 255 * canvas.height);
-        ctx.strokeStyle = '#fff';
+        ctx.strokeStyle = borderCol;
         ctx.beginPath();
         ctx.moveTo(0, yThresh);
         ctx.lineTo(canvas.width, yThresh);
         ctx.stroke();
     }
 
-    // 初期表示
-    drawThresholdOnly();
+    // 初期表示 (loadSettings後に移動)
 
     thresholdSlider.addEventListener('input', (e) => {
         thresholdDisp.textContent = e.target.value;
@@ -981,7 +1080,7 @@
             isListening = true;
             
             // UI更新
-            document.getElementById('decodedText').textContent = "Waiting...";
+            resetDecodedText();
             document.getElementById('debugSignal').innerHTML = ""; 
             currentMorseChar = "";
             silenceStartTime = Date.now(); 
@@ -1038,9 +1137,16 @@
     }
 
     // ハイライトの切り替え
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => dropZone.classList.add('dragging'), false);
-    });
+    const handleDragEnterOver = (e) => {
+        // ファイルが含まれている場合のみハイライト
+        if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+            dropZone.classList.add('dragging');
+        }
+    };
+
+    dropZone.addEventListener('dragenter', handleDragEnterOver, false);
+    dropZone.addEventListener('dragover', handleDragEnterOver, false);
+
     ['dragleave', 'drop'].forEach(eventName => {
         dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragging'), false);
     });
@@ -1089,7 +1195,7 @@
         analyser.connect(audioCtx.destination);
 
         // 状態リセット
-        document.getElementById('decodedText').textContent = "Waiting...";
+        resetDecodedText();
         document.getElementById('debugSignal').innerHTML = ""; 
         currentMorseChar = "";
         silenceStartTime = Date.now(); 
@@ -1452,7 +1558,12 @@
             thresholdDisp.textContent = sliderVal;
         }
 
-        ctx.fillStyle = 'black';
+        const style = getComputedStyle(document.body);
+        const bgCol = style.getPropertyValue('--visualizer-bg').trim();
+        const barCol = style.getPropertyValue('--visualizer-bar').trim();
+        const borderCol = style.getPropertyValue('--visualizer-border').trim();
+
+        ctx.fillStyle = bgCol;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         // --- スペクトラムアナライザー描画 (背景) ---
@@ -1460,7 +1571,7 @@
         const sampleRate = audioCtx.sampleRate;
         const freqResolution = sampleRate / (2 * bufferLength);
         
-        ctx.fillStyle = '#555'; // 薄いグレーで周波数を表示
+        ctx.fillStyle = barCol; // 薄いグレーで周波数を表示
 
         // 対数スケール用パラメータ (20Hz - 20000Hz)
         const minLogFreq = 20;
@@ -1525,7 +1636,7 @@
         const yThresh = canvas.height - (threshold / 255 * canvas.height);
         
         // しきい値の線
-        ctx.strokeStyle = '#fff';
+        ctx.strokeStyle = borderCol;
         ctx.beginPath();
         ctx.moveTo(0, yThresh);
         ctx.lineTo(canvas.width, yThresh);
@@ -1611,9 +1722,14 @@
         markSignalsAsProcessed();
     }
 
+    function resetDecodedText() {
+        const text = (currentMode === 'JA') ? "待機中..." : "Waiting...";
+        document.getElementById('decodedText').textContent = text;
+    }
+
     function updateOutput(str) {
         const out = document.getElementById('decodedText');
-        if (out.textContent === "Waiting...") out.textContent = "";
+        if (out.textContent === "Waiting..." || out.textContent === "待機中...") out.textContent = "";
         out.textContent += str;
     }
 
@@ -1714,6 +1830,7 @@
             filterMin: Math.round(logScale(parseInt(filterMinRange.value), 20000, 20, 20000)),
             filterMax: Math.round(logScale(parseInt(filterMaxRange.value), 20000, 20, 20000)),
             filterQ: filterQRange.value,
+            theme: document.getElementById('themeSelect').value,
             // UIの状態 (メニューの開閉) を保存
             detailsSendOpen: detailsSend.open,
             detailsRecvOpen: detailsRecv.open
@@ -1791,6 +1908,7 @@
             // フィルタ復元
             applyVal(filterToggle, s.filterEnabled, 'change');
             applyVal(filterQRange, s.filterQ);
+            applyVal(document.getElementById('themeSelect'), s.theme, 'change');
 
             // Hz -> スライダー値
             if (s.filterMin !== undefined) {
@@ -1910,6 +2028,39 @@
     });
     makeEditable('filterQVal', 'filterQRange', { min: 0.1, max: 30 });
 
+    // --- テーマ設定 ---
+    const btnSettings = document.getElementById('btnSettings');
+    const settingsMenu = document.getElementById('settingsMenu');
+    const themeSelect = document.getElementById('themeSelect');
+
+    btnSettings.addEventListener('click', (e) => {
+        e.stopPropagation();
+        settingsMenu.style.display = settingsMenu.style.display === 'block' ? 'none' : 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!settingsMenu.contains(e.target) && e.target !== btnSettings) {
+            settingsMenu.style.display = 'none';
+        }
+    });
+
+    themeSelect.addEventListener('change', () => {
+        const theme = themeSelect.value;
+        if (theme === 'light') {
+            document.body.classList.add('light-theme');
+        } else {
+            document.body.classList.remove('light-theme');
+        }
+        updateSliderHighlight();
+        
+        // 受信中でなければ、テーマ変更に合わせてビジュアライザ背景を再描画
+        if (!isListening) {
+            drawThresholdOnly();
+        }
+        
+        saveSettings();
+    });
+
     // ページ読み込み時に実行
     loadSettings();
     updateReferenceTable();
@@ -1921,7 +2072,7 @@
         document.getElementById('sendFlashToggle'),
         volumeSlider, dotLengthSlider, dashLengthSlider, signalIntervalSlider, charSpaceSlider, freqSlider, waveSelect,
         autoThreshToggle, thresholdSlider, dotSlider, charGapSlider, inputVolumeRange, smoothingSlider,
-        filterToggle, filterMinRange, filterMaxRange, filterQRange
+        filterToggle, filterMinRange, filterMaxRange, filterQRange, themeSelect
     ];
 
     inputsToSave.forEach(el => {
@@ -2172,6 +2323,9 @@
     // メニューの開閉(toggle)も保存のトリガーにする
     detailsSend.addEventListener('toggle', saveSettings);
     detailsRecv.addEventListener('toggle', saveSettings);
+    
+    // 初期描画 (テーマ適用後)
+    drawThresholdOnly();
 </script>
 
 </body>
