@@ -927,13 +927,36 @@
         MORSE_CODE_JA[i.toString()] = MORSE_CODE_EN[i.toString()];
     }
 
-    // ひらがな -> カタカナ変換用 (簡易マッピング)
-    // ※送信時にカタカナ辞書を引くために使用
-    function toKatakana(str) {
-        return str.replace(/[\u3041-\u3096]/g, function(match) {
-            var chr = match.charCodeAt(0) + 0x60;
-            return String.fromCharCode(chr);
-        });
+    // テキスト正規化・変換用関数
+    function normalizeText(str, mode) {
+        // NFKC正規化: 半角カタカナを全角に、全角英数を半角に、全角スペースを半角に一括変換
+        str = str.normalize('NFKC');
+
+        if (mode === 'JA') {
+            // 1. ひらがな -> カタカナ
+            str = str.replace(/[\u3041-\u3096]/g, function(match) {
+                return String.fromCharCode(match.charCodeAt(0) + 0x60);
+            });
+            
+            // 2. 小書き文字 -> 並文字 ＆ 記号置換・除去
+            const replaceMap = {
+                'ァ': 'ア', 'ィ': 'イ', 'ゥ': 'ウ', 'ェ': 'エ', 'ォ': 'オ',
+                'ッ': 'ツ', 'ャ': 'ヤ', 'ュ': 'ユ', 'ョ': 'ヨ', 'ヮ': 'ワ',
+                'ヵ': 'カ', 'ヶ': 'ケ',
+                '「': '（', '【': '（', '】': '）',
+                // 以下の文字はスルー（除去）
+                '。': '', '．': '', '！': '', '？': '', '・': ''
+            };
+            // マップにある文字が含まれていれば置換
+            const re = new RegExp('[' + Object.keys(replaceMap).join('') + ']', 'g');
+            str = str.replace(re, function(match) {
+                return replaceMap[match] || match;
+            });
+            
+        } else {
+            str = str.toUpperCase();
+        }
+        return str;
     }
 
     let currentMode = 'EN'; // 'EN' or 'JA'
@@ -1160,12 +1183,7 @@
         sentDisplay.innerHTML = '';
 
         // モードに応じた処理
-        let textToProcess = rawText;
-        if (currentMode === 'JA') {
-            textToProcess = toKatakana(rawText).normalize('NFD');
-        } else {
-            textToProcess = rawText.toUpperCase();
-        }
+        let textToProcess = normalizeText(rawText, currentMode).normalize('NFD');
 
         const dict = (currentMode === 'JA') ? MORSE_CODE_JA : MORSE_CODE_EN;
 
@@ -2639,12 +2657,7 @@
         const dict = (currentMode === 'JA') ? MORSE_CODE_JA : MORSE_CODE_EN;
 
         // テキストの前処理
-        let processedText = text;
-        if (currentMode === 'JA') {
-            processedText = toKatakana(text).normalize('NFD');
-        } else {
-            processedText = text.toUpperCase();
-        }
+        let processedText = normalizeText(text, currentMode).normalize('NFD');
 
         // 1. まず総時間を計算する (ミリ秒)
         let totalTimeMs = 0;
