@@ -2765,9 +2765,9 @@
             // ファイル名の生成
             // 1. 1行目を取得
             let filenameBase = text.split('\n')[0];
-            // 2. 20文字制限
-            if (filenameBase.length > 20) {
-                filenameBase = filenameBase.substring(0, 20);
+            // 2. 244文字制限
+            if (filenameBase.length > 244) {
+                filenameBase = filenameBase.substring(0, 244);
             }
             // 3. ファイル名に使えない文字を置換 (Windows等でのエラー防止)
             filenameBase = filenameBase.replace(/[\\/:*?"<>|]/g, '_');
