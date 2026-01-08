@@ -10,7 +10,7 @@
             /* Default Dark Theme */
             --bg-body: #222;
             --text-main: #0f0;
-            --text-sub: #aaa;
+            --text-sub: #eee;
             --text-dim: #777;
             --text-input: #fff;
             
@@ -2114,6 +2114,7 @@
     const detailsMainSend = document.getElementById('detailsMainSend');
     const detailsMainRecv = document.getElementById('detailsMainRecv');
     const detailsMainRef = document.getElementById('detailsMainRef');
+    const detailsMainOverview = document.getElementById('detailsMainOverview');
     const detailsSend = document.getElementById('detailsSend');
     const detailsRecv = document.getElementById('detailsRecv');
 
@@ -2154,6 +2155,7 @@
             detailsMainSendOpen: detailsMainSend.open,
             detailsMainRecvOpen: detailsMainRecv.open,
             detailsMainRefOpen: detailsMainRef.open,
+            detailsMainOverviewOpen: detailsMainOverview.open,
             detailsSendOpen: detailsSend.open,
             detailsRecvOpen: detailsRecv.open
         };
@@ -2261,6 +2263,7 @@
             if (s.detailsMainSendOpen !== undefined) detailsMainSend.open = s.detailsMainSendOpen;
             if (s.detailsMainRecvOpen !== undefined) detailsMainRecv.open = s.detailsMainRecvOpen;
             if (s.detailsMainRefOpen !== undefined) detailsMainRef.open = s.detailsMainRefOpen;
+            if (s.detailsMainOverviewOpen !== undefined) detailsMainOverview.open = s.detailsMainOverviewOpen;
             if (s.detailsSendOpen !== undefined) detailsSend.open = s.detailsSendOpen;
             if (s.detailsRecvOpen !== undefined) detailsRecv.open = s.detailsRecvOpen;
 
