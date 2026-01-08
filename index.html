@@ -375,6 +375,31 @@
             margin-right: 8px;
             font-size: 0.7rem;
         }
+
+        /* モバイル向け調整: 画面幅を最大限活用する */
+        @media screen and (max-width: 600px) {
+            body {
+                padding: 10px 5px; /* 左右の余白を最小限に */
+            }
+            .container {
+                width: 100%;
+                max-width: none;
+            }
+            .main-panel {
+                border-radius: 4px; /* 角丸を少し控えめに */
+                margin-bottom: 10px;
+            }
+            .main-panel summary {
+                padding: 10px 12px; /* タップしやすさを維持しつつ余白削減 */
+            }
+            .panel-content {
+                padding: 15px 8px; /* 内部の左右余白を削って横幅を確保 */
+            }
+            button {
+                padding: 10px 12px; /* ボタンが並びやすいように少し小さく */
+                font-size: 14px;
+            }
+        }
     </style>
 </head>
 <body>
