@@ -628,14 +628,14 @@
                             <input type="range" id="noiseCancelStrengthRange" min="0" max="100" step="1" value="50" style="flex: 1;">
                             <span id="noiseCancelStrengthVal" style="width: 40px; text-align: right;">50</span>
                         </div>
-                        <small style="color: var(--text-dim);">定常的なノイズを学習して除去します。強すぎると信号も消える場合があります。</small>
+                        <small style="color: var(--text-dim);">定常的なノイズを学習して除去します。</small>
                     </div>
 
                     <hr style="border-color:var(--border-color); margin:15px 0;">
 
                     <label style="display: flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer;">
                         <input type="checkbox" id="harmonicBoostToggle" style="width: 18px; height: 18px;">
-                        リズム強調 (Rhythm Booster)
+                        【実験的】リズム強調 (Rhythm Booster)
                     </label>
                     <div style="margin-top: 5px;">
                         <label>強調レベル</label>
@@ -643,7 +643,7 @@
                             <input type="range" id="harmonicBoostRange" min="0" max="3000" step="10" value="200" style="flex: 1;">
                             <span id="harmonicBoostVal" style="width: 40px; text-align: right;">200%</span>
                         </div>
-                        <small style="color: var(--text-dim);">時間的な規則性（リズム）を検知して増幅します。不規則な雑音や会話と区別します。</small>
+                        <small style="color: var(--text-dim);">時間的な規則性（リズム）を検知して増幅します。不規則な雑音や会話と区別します。<br>※ この機能は実験的に実装しており、動作に不安定なところがあります。</small>
                     </div>
 
                 </div>
@@ -1971,7 +1971,16 @@
         }
         let average = sum / (totalWeight || 1);
         // 感度調整用ブースト
-        let displayVol = average * 3; 
+        let multiplier = 1;
+        if (filterToggle.checked) {
+            const minHz = logScale(parseInt(filterMinRange.value), 2000000, 20, 20000);
+            const maxHz = logScale(parseInt(filterMaxRange.value), 2000000, 20, 20000);
+            const bandwidth = Math.max(1, maxHz - minHz);
+            // 帯域幅が狭いほど増幅 (50Hz幅で約3倍、20kHz幅で1倍)
+            multiplier = 3.0 - ((bandwidth - 50) * (2.0 / 19950));
+            if (multiplier < 1) multiplier = 1;
+        }
+        let displayVol = average * multiplier; 
 
         // --- 自動しきい値調整ロジック (AGC簡易版) ---
         if (autoThreshToggle.checked) {
@@ -1989,7 +1998,6 @@
             // ただし displayVol が 0-765 (255*3) の範囲であることに注意
             // 内部しきい値は 0-255 の範囲なので調整
             
-            // displayVol は平均*3なので結構大きい。
             // 内部計算用のしきい値ターゲット
             let targetThreshold = estimatedNoise + 40; 
             
