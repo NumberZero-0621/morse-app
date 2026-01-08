@@ -509,7 +509,7 @@
                     <br>
 
                     <label>音色</label>
-                    <select id="waveType" style="width: 100%; padding: 5px; background: var(--bg-input); color: var(--text-input); border: 1px solid var(--border-color);">
+                    <select id="waveType" style="width: 100%; padding: 10px; font-size: 1rem; border-radius: 8px; background: var(--bg-input); color: var(--text-input); border: 1px solid var(--border-color); cursor: pointer;">
                         <option value="square" selected>矩形波 (Square) - デフォルト</option>
                         <option value="sine">正弦波 (Sine) - 柔らかい音</option>
                         <option value="sawtooth">ノコギリ波 (Sawtooth) - 鋭い音</option>
@@ -620,7 +620,7 @@
 
                     <label style="display: flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer;">
                         <input type="checkbox" id="noiseCancelToggle" style="width: 18px; height: 18px;">
-                        ノイズキャンセリング (実験的)
+                        ノイズキャンセリング
                     </label>
                     <div style="margin-top: 5px;">
                         <label>強度 (学習率)</label>
@@ -629,6 +629,21 @@
                             <span id="noiseCancelStrengthVal" style="width: 40px; text-align: right;">50</span>
                         </div>
                         <small style="color: var(--text-dim);">定常的なノイズを学習して除去します。強すぎると信号も消える場合があります。</small>
+                    </div>
+
+                    <hr style="border-color:var(--border-color); margin:15px 0;">
+
+                    <label style="display: flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer;">
+                        <input type="checkbox" id="harmonicBoostToggle" style="width: 18px; height: 18px;">
+                        リズム強調 (Rhythm Booster)
+                    </label>
+                    <div style="margin-top: 5px;">
+                        <label>強調レベル</label>
+                        <div style="display: flex; align-items: center;">
+                            <input type="range" id="harmonicBoostRange" min="0" max="3000" step="10" value="200" style="flex: 1;">
+                            <span id="harmonicBoostVal" style="width: 40px; text-align: right;">200%</span>
+                        </div>
+                        <small style="color: var(--text-dim);">時間的な規則性（リズム）を検知して増幅します。不規則な雑音や会話と区別します。</small>
                     </div>
 
                 </div>
@@ -704,104 +719,179 @@
 
 <script>
     // --- AudioWorklet Code (Inline) ---
-    const noiseProcessorCode = `
-    class NoiseReducer extends AudioWorkletProcessor {
-        constructor() {
-            super();
-            // ALE (Adaptive Line Enhancer) using LMS Filter
-            // This separates predictable narrowband components (Morse) from broadband noise.
-            this.bufferSize = 128; // Filter order
-            this.delay = 64;       // Decorrelation delay
-            this.weights = new Float32Array(this.bufferSize);
-            this.buffer = new Float32Array(this.bufferSize + this.delay);
-            this.head = 0;
-            this.mu = 0.01; // Learning rate
-        }
-
-        static get parameterDescriptors() {
-            return [{ name: 'strength', defaultValue: 0.5, minValue: 0, maxValue: 1 }];
-        }
-
-        process(inputs, outputs, parameters) {
-            const input = inputs[0];
-            const output = outputs[0];
-            const strengthParam = parameters.strength;
-            
-            // If disconnected
-            if (!input || !input.length) return true;
-
-            for (let channel = 0; channel < input.length; channel++) {
-                const inputChannel = input[channel];
-                const outputChannel = output[channel];
-                
-                // Process sample by sample
-                for (let i = 0; i < inputChannel.length; i++) {
-                    const x_n = inputChannel[i];
+            const noiseProcessorCode = `
+            class NoiseReducer extends AudioWorkletProcessor {
+                constructor() {
+                    super();
+                    // --- LMS Noise Canceller State ---
+                    this.bufferSize = 128; 
+                    this.delay = 64;       
+                    this.weights = new Float32Array(this.bufferSize);
+                    this.buffer = new Float32Array(this.bufferSize + this.delay);
+                    this.head = 0;
+                    this.mu = 0.01; 
+        
+                    // --- Rhythm Analysis State ---
+                    this.isSignal = false;       // Current state: ON/OFF
+                    this.stateDuration = 0;      // Samples in current state
+                    this.onDurations = [];       // History of ON pulse lengths (samples)
+                    this.historySize = 10;       // Number of pulses to keep
+                    this.confidence = 0.0;       // 0.0 to 1.0 (Probability of being Morse)
                     
-                    // Get strength for this sample (or block constant)
-                    const strength = strengthParam.length > 1 ? strengthParam[i] : strengthParam[0];
+                    // Envelope & Threshold for Rhythm Gate
+                    this.envelope = 0.0;
+                    this.noiseFloor = 0.001;     
+                    this.currentGain = 1.0;
+                }
+        
+                static get parameterDescriptors() {
+                    return [
+                        { name: 'strength', defaultValue: 0.5, minValue: 0, maxValue: 1 }, // LMS Noise Reduction Strength
+                        { name: 'boost', defaultValue: 1, minValue: 0, maxValue: 10 }      // Rhythm Boost Amount
+                    ];
+                }
+        
+                process(inputs, outputs, parameters) {
+                    const input = inputs[0];
+                    const output = outputs[0];
+                    const strengthParam = parameters.strength;
+                    const boostParam = parameters.boost;
                     
-                    // Fixed learning rate for stability and continuous adaptation
-                    this.mu = 0.01;
-
-                    // Update buffer
-                    this.buffer[this.head] = x_n;
+                    if (!input || !input.length) return true;
                     
-                    // Delayed input (Reference for prediction)
-                    // x(n - delay)
-                    let delayIdx = (this.head - this.delay + this.buffer.length) % this.buffer.length;
-                    
-                    // Prediction y(n) = w * x(n-delay) vector
-                    let y_n = 0;
-                    for (let k = 0; k < this.bufferSize; k++) {
-                        let idx = (delayIdx - k + this.buffer.length) % this.buffer.length;
-                        y_n += this.weights[k] * this.buffer[idx];
-                    }
-                    
-                    // --- Stability Check (Stopper) ---
-                    // If prediction explodes due to sudden loud noise, reset the filter
-                    if (!isFinite(y_n) || Math.abs(y_n) > 10.0) {
-                        for(let k=0; k<this.bufferSize; k++) this.weights[k] = 0;
-                        y_n = 0;
-                    }
-
-                    // Error e(n) = x(n) - y(n)
-                    // ALE: y(n) is the narrowband signal (Morse), e(n) is the broadband noise.
-                    
-                    let e_n = x_n - y_n;
-                    if (!isFinite(e_n)) e_n = 0;
-                    
-                    // LMS Weight Update: w(n+1) = w(n) + 2 * mu * e(n) * x(n-delay)
-                    for (let k = 0; k < this.bufferSize; k++) {
-                        let idx = (delayIdx - k + this.buffer.length) % this.buffer.length;
-                        let delta = 2 * this.mu * e_n * this.buffer[idx];
+                    const boostVal = boostParam.length > 1 ? boostParam[0] : boostParam[0];
+                    const fs = sampleRate; 
+        
+                    for (let channel = 0; channel < input.length; channel++) {
+                        const inputChannel = input[channel];
+                        const outputChannel = output[channel];
                         
-                        // Safety check for delta
-                        if (!isFinite(delta)) delta = 0;
-
-                        this.weights[k] += delta;
-                        
-                        // Leakage for continuous re-adaptation (prevents saturation and allows tracking changes)
-                        this.weights[k] *= 0.9995;
-                        
-                        // Hard Clamp weights to prevent explosion
-                        if (this.weights[k] > 5.0) this.weights[k] = 5.0;
-                        if (this.weights[k] < -5.0) this.weights[k] = -5.0;
+                        for (let i = 0; i < inputChannel.length; i++) {
+                            const x_n = inputChannel[i];
+                            
+                            const strength = strengthParam.length > 1 ? strengthParam[i] : strengthParam[0];
+        
+                            // --- 1. LMS Adaptive Filter (Noise Cancelling) ---
+                            this.buffer[this.head] = x_n;
+                            let delayIdx = (this.head - this.delay + this.buffer.length) % this.buffer.length;
+                            
+                            let y_n = 0; // Predicted Periodic Signal (Morse Candidate)
+                            for (let k = 0; k < this.bufferSize; k++) {
+                                let idx = (delayIdx - k + this.buffer.length) % this.buffer.length;
+                                y_n += this.weights[k] * this.buffer[idx];
+                            }
+                            
+                            if (!isFinite(y_n) || Math.abs(y_n) > 10.0) {
+                                for(let k=0; k<this.bufferSize; k++) this.weights[k] = 0;
+                                y_n = 0;
+                            }
+        
+                            let e_n = x_n - y_n; // Error Signal (Noise)
+                            if (!isFinite(e_n)) e_n = 0;
+        
+                            // LMS Weights Update
+                            for (let k = 0; k < this.bufferSize; k++) {
+                                let idx = (delayIdx - k + this.buffer.length) % this.buffer.length;
+                                let delta = 2 * this.mu * e_n * this.buffer[idx];
+                                if (!isFinite(delta)) delta = 0;
+                                this.weights[k] += delta;
+                                this.weights[k] *= 0.9995; 
+                                if (this.weights[k] > 5.0) this.weights[k] = 5.0;
+                                if (this.weights[k] < -5.0) this.weights[k] = -5.0;
+                            }
+        
+                            // --- 2. Rhythm Analysis (on y_n) ---
+                            // We analyze the "cleaned" periodic signal y_n for rhythm
+                            const signalLevel = Math.abs(y_n);
+        
+                            // Envelope Follower
+                            if (signalLevel > this.envelope) {
+                                this.envelope = this.envelope * 0.9 + signalLevel * 0.1;
+                            } else {
+                                this.envelope = this.envelope * 0.999 + signalLevel * 0.001;
+                            }
+        
+                            // Dynamic Noise Floor for Gate
+                            if (this.envelope < this.noiseFloor) {
+                                this.noiseFloor = this.envelope;
+                            } else {
+                                this.noiseFloor = this.noiseFloor * 0.9999 + this.envelope * 0.0001;
+                            }
+                            
+                            const gateThresh = this.noiseFloor * 3.0 + 0.005;
+        
+                            // State Machine
+                            if (!this.isSignal) {
+                                if (this.envelope > gateThresh) {
+                                    this.isSignal = true;
+                                    this.stateDuration = 0;
+                                } else {
+                                    this.stateDuration++;
+                                }
+                            } else {
+                                if (this.envelope < gateThresh * 0.6) {
+                                    this.recordPulse(this.stateDuration, fs);
+                                    this.updateConfidence();
+                                    this.isSignal = false;
+                                    this.stateDuration = 0;
+                                } else {
+                                    this.stateDuration++;
+                                }
+                            }
+        
+                            // --- 3. Gain Calculation ---
+                            let rhythmGain = 1.0;
+                            if (this.isSignal && this.confidence > 0.4) {
+                                rhythmGain = 1.0 + (boostVal - 1.0) * this.confidence;
+                            }
+                            this.currentGain = this.currentGain * 0.95 + rhythmGain * 0.05;
+        
+                            // --- 4. Output Reconstruction ---
+                            // Boosted Periodic Signal + Reduced Noise
+                            outputChannel[i] = (y_n * this.currentGain) + (e_n * (1.0 - strength));
+                            
+                            this.head = (this.head + 1) % this.buffer.length;
+                        }
                     }
-
-                    // Output: Mix original with noise cancelled version based on strength
-                    // strength 0.0 = Original, 1.0 = Fully processed (ALE output)
-                    outputChannel[i] = x_n - (strength * e_n);
-                    
-                    this.head = (this.head + 1) % this.buffer.length;
+                    return true;
+                }
+        
+                recordPulse(durationSamples, sampleRate) {
+                    const minSamples = sampleRate * 0.02; // 20ms
+                    const maxSamples = sampleRate * 2.0;  // 2s
+        
+                    if (durationSamples > minSamples && durationSamples < maxSamples) {
+                        this.onDurations.push(durationSamples);
+                        if (this.onDurations.length > this.historySize) {
+                            this.onDurations.shift();
+                        }
+                    }
+                }
+        
+                updateConfidence() {
+                    if (this.onDurations.length < 3) {
+                        this.confidence = 0.0;
+                        return;
+                    }
+                    const sorted = [...this.onDurations].sort((a, b) => a - b);
+                    const minDur = sorted[0]; 
+                    let baseUnit = minDur;
+                    let matchCount = 0;
+                    const tolerance = 0.35; 
+        
+                    for (let d of this.onDurations) {
+                        const ratio = d / baseUnit;
+                        const isDot = (ratio >= (1.0 - tolerance) && ratio <= (1.0 + tolerance));
+                        const isDash = (ratio > (1.0 + tolerance));
+                        if (isDot || isDash) matchCount++;
+                    }
+                    let score = matchCount / this.onDurations.length;
+                    this.confidence = this.confidence * 0.8 + score * 0.2;
                 }
             }
-            return true;
-        }
-    }
-    registerProcessor('noise-reducer', NoiseReducer);
-    `;
-
+            registerProcessor('noise-reducer', NoiseReducer);
+            `;    
+    
     // --- 1. 定義・設定 ---
     
     // 英語 (国際モールス)
@@ -1256,8 +1346,13 @@
         if (isWorkletLoaded && !noiseNode) {
             try {
                 noiseNode = new AudioWorkletNode(audioCtx, 'noise-reducer');
-                const param = noiseNode.parameters.get('strength');
-                param.value = parseInt(noiseCancelStrengthRange.value) / 100;
+                
+                const paramStrength = noiseNode.parameters.get('strength');
+                if(paramStrength) paramStrength.value = parseInt(noiseCancelStrengthRange.value) / 100;
+                
+                const paramBoost = noiseNode.parameters.get('boost');
+                if(paramBoost) paramBoost.value = harmonicBoostToggle.checked ? (parseInt(harmonicBoostRange.value) / 100) : 1.0;
+                
             } catch(e) {
                 console.warn("Noise node creation failed", e);
             }
@@ -1569,6 +1664,29 @@
     const noiseCancelToggle = document.getElementById('noiseCancelToggle');
     const noiseCancelStrengthRange = document.getElementById('noiseCancelStrengthRange');
     const noiseCancelStrengthVal = document.getElementById('noiseCancelStrengthVal');
+    
+    const harmonicBoostToggle = document.getElementById('harmonicBoostToggle');
+    const harmonicBoostRange = document.getElementById('harmonicBoostRange');
+    const harmonicBoostVal = document.getElementById('harmonicBoostVal');
+
+    harmonicBoostRange.addEventListener('input', (e) => {
+        harmonicBoostVal.textContent = e.target.value + "%";
+        if (noiseNode) {
+            // Only apply if toggle is ON
+            const val = harmonicBoostToggle.checked ? (parseInt(e.target.value) / 100) : 1.0;
+            const param = noiseNode.parameters.get('boost');
+            if(param) param.value = val;
+        }
+    });
+
+    harmonicBoostToggle.addEventListener('change', () => {
+         if (noiseNode) {
+            const val = harmonicBoostToggle.checked ? (parseInt(harmonicBoostRange.value) / 100) : 1.0;
+            const param = noiseNode.parameters.get('boost');
+            if(param) param.value = val;
+        }
+        saveSettings();
+    });
 
     noiseCancelStrengthRange.addEventListener('input', (e) => {
         noiseCancelStrengthVal.textContent = e.target.value;
@@ -1839,8 +1957,19 @@
         analyser.getByteFrequencyData(dataArray);
         
         let sum = 0;
-        for(let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-        let average = sum / dataArray.length;
+        let totalWeight = 0;
+        for(let i = 0; i < dataArray.length; i++) {
+            // 低周波ブースト: 低周波域の信号値を増幅して評価する (20-70Hz付近を強化)
+            // i=0付近で約4倍、周波数が上がると1倍に収束
+            const lowBoost = 1.0 + 3.0 * Math.exp(-i * 0.15);
+            
+            // 重み付け: 高周波ノイズの影響を抑える
+            const weight = 1.0 / (1.0 + i * 0.05);
+            
+            sum += (dataArray[i] * lowBoost) * weight;
+            totalWeight += weight;
+        }
+        let average = sum / (totalWeight || 1);
         // 感度調整用ブースト
         let displayVol = average * 3; 
 
@@ -2157,6 +2286,10 @@
             noiseCancel: noiseCancelToggle.checked,
             noiseStrength: noiseCancelStrengthRange.value,
             
+            // 倍音強調
+            harmonicBoost: harmonicBoostToggle.checked,
+            harmonicBoostLevel: harmonicBoostRange.value,
+            
             theme: document.getElementById('themeSelect').value,
             // UIの状態 (メニューの開閉) を保存
             detailsMainSendOpen: detailsMainSend.open,
@@ -2243,6 +2376,10 @@
             // ノイズキャンセリング復元
             applyVal(noiseCancelToggle, s.noiseCancel, 'change');
             applyVal(noiseCancelStrengthRange, s.noiseStrength);
+
+            // 倍音強調復元
+            applyVal(harmonicBoostToggle, s.harmonicBoost, 'change');
+            applyVal(harmonicBoostRange, s.harmonicBoostLevel);
 
             applyVal(document.getElementById('themeSelect'), s.theme, 'change');
 
@@ -2368,6 +2505,7 @@
     });
     makeEditable('filterQVal', 'filterQRange', { min: 0.1, max: 30 });
     makeEditable('noiseCancelStrengthVal', 'noiseCancelStrengthRange', { min: 0, max: 100 });
+    makeEditable('harmonicBoostVal', 'harmonicBoostRange', { min: 0, max: 3000 });
 
     // --- テーマ設定 ---
     const btnSettings = document.getElementById('btnSettings');
@@ -2414,7 +2552,8 @@
         volumeSlider, dotLengthSlider, dashLengthSlider, signalIntervalSlider, charSpaceSlider, freqSlider, waveSelect,
         autoThreshToggle, thresholdSlider, dotSlider, charGapSlider, inputVolumeRange, smoothingSlider,
         filterToggle, filterMinRange, filterMaxRange, filterQRange, themeSelect,
-        noiseCancelToggle, noiseCancelStrengthRange
+        noiseCancelToggle, noiseCancelStrengthRange,
+        harmonicBoostToggle, harmonicBoostRange
     ];
 
     inputsToSave.forEach(el => {
