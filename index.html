@@ -51,6 +51,9 @@
 
             --signal-color: #0f0;
             --signal-processed: #fff;
+
+            --flash-bg: #fff;
+            --flash-text: #000;
         }
 
         body.light-theme {
@@ -89,6 +92,9 @@
             
             --signal-color: #28a745;
             --signal-processed: #555;
+
+            --flash-bg: #f00;
+            --flash-text: #fff;
         }
 
         body {
@@ -161,8 +167,8 @@
         
         /* 送信中の光る演出用クラス */
         .flashing {
-            background-color: #fff !important;
-            color: #000 !important;
+            background-color: var(--flash-bg) !important;
+            color: var(--flash-text) !important;
         }
 
         /* デュアルレンジスライダー用 */
@@ -443,14 +449,18 @@
             <textarea id="inputText" placeholder="ここに入力 (例: SOS)  ※小文字も対応"></textarea>
             <div id="sentSignalDisplay"></div>
             <br>
-            <div style="display: flex; align-items: center; justify-content: center; gap: 24px; margin-bottom: 8px;">
-                 <label style="font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="sendAudioToggle" checked style="transform: scale(1.5); cursor: pointer;">
+            <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 15px; margin-bottom: 8px;">
+                 <label style="font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    <input type="checkbox" id="sendAudioToggle" checked style="transform: scale(1.3); cursor: pointer;">
                     音を鳴らす
                 </label>
-                <label style="font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                    <input type="checkbox" id="sendFlashToggle" checked style="transform: scale(1.5); cursor: pointer;">
+                <label style="font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                    <input type="checkbox" id="sendFlashToggle" style="transform: scale(1.3); cursor: pointer;">
                     画面を光らせる
+                </label>
+                <label style="font-size: 1rem; cursor: pointer; display: flex; align-items: center; gap: 6px;" title="Android Chrome推奨。カメラ権限が必要です。">
+                    <input type="checkbox" id="sendTorchToggle" style="transform: scale(1.3); cursor: pointer;">
+                    スマホライト <span style="font-size:0.8rem; color:var(--text-dim);">(実験的)</span>
                 </label>
             </div>
             <button id="btnSend">送信</button>
@@ -459,8 +469,8 @@
             
             <div class="controls" style="margin-top: 10px;">
                 <label>送信音量</label>
-                <input title="volumeRange" type="range" id="volumeRange" min="0" max="100" value="50">
-                <span id="volumeVal">50</span>
+                <input title="volumeRange" type="range" id="volumeRange" min="0" max="100" value="20">
+                <span id="volumeVal">20</span>
             </div>
 
             <details id="detailsSend" style="margin-top: 10px; text-align: left; background: var(--bg-panel-dark); padding: 10px; border-radius: 5px;">
@@ -547,7 +557,24 @@
                 <span id="thresholdVal">40</span>
             </div>
 
-            <details id="detailsRecv" style="margin-top: 10px; text-align: left; background: var(--bg-panel-dark); padding: 10px; border-radius: 5px;">
+            <canvas id="visualizer"></canvas>
+            <div style="position: relative; width: 100%; height: 20px; color: var(--text-sub); font-size: 0.75rem; margin-top: 2px; margin-bottom: 5px;">
+                <span style="position: absolute; left: 0%;">20Hz</span>
+                <span style="position: absolute; left: 13.3%; transform: translateX(-50%);">50</span>
+                <span style="position: absolute; left: 23.3%; transform: translateX(-50%);">100</span>
+                <span style="position: absolute; left: 33.3%; transform: translateX(-50%);">200</span>
+                <span style="position: absolute; left: 46.6%; transform: translateX(-50%);">500</span>
+                <span style="position: absolute; left: 56.6%; transform: translateX(-50%);">1k</span>
+                <span style="position: absolute; left: 66.6%; transform: translateX(-50%);">2k</span>
+                <span style="position: absolute; left: 79.9%; transform: translateX(-50%);">5k</span>
+                <span style="position: absolute; left: 90.0%; transform: translateX(-50%);">10k</span>
+                <span style="position: absolute; right: 0%;">20k</span>
+            </div>
+            <div style="color: var(--text-sub); font-size: 0.8rem;">受信結果:</div>
+            <div id="decodedText">Waiting...</div>
+            <div id="debugSignal" style="text-align: center;"></div>
+
+            <details id="detailsRecv" style="margin-top: 20px; text-align: left; background: var(--bg-panel-dark); padding: 10px; border-radius: 5px;">
                 <summary style="cursor: pointer; outline: none; color: var(--text-sub);">詳細設定 (認識パラメータ)</summary>
                 <div style="margin-top: 10px; padding-left: 10px;">
                     
@@ -648,23 +675,6 @@
 
                 </div>
             </details>
-
-            <canvas id="visualizer"></canvas>
-            <div style="position: relative; width: 100%; height: 20px; color: var(--text-sub); font-size: 0.75rem; margin-top: 2px; margin-bottom: 5px;">
-                <span style="position: absolute; left: 0%;">20Hz</span>
-                <span style="position: absolute; left: 13.3%; transform: translateX(-50%);">50</span>
-                <span style="position: absolute; left: 23.3%; transform: translateX(-50%);">100</span>
-                <span style="position: absolute; left: 33.3%; transform: translateX(-50%);">200</span>
-                <span style="position: absolute; left: 46.6%; transform: translateX(-50%);">500</span>
-                <span style="position: absolute; left: 56.6%; transform: translateX(-50%);">1k</span>
-                <span style="position: absolute; left: 66.6%; transform: translateX(-50%);">2k</span>
-                <span style="position: absolute; left: 79.9%; transform: translateX(-50%);">5k</span>
-                <span style="position: absolute; left: 90.0%; transform: translateX(-50%);">10k</span>
-                <span style="position: absolute; right: 0%;">20k</span>
-            </div>
-            <div style="color: var(--text-sub); font-size: 0.8rem;">受信結果:</div>
-            <div id="decodedText">Waiting...</div>
-            <div id="debugSignal" style="text-align: center;"></div>
         </div>
     </details>
 
@@ -1065,6 +1075,7 @@
     let signalIntervalMs = 80;
     let charSpacingMs = 300; // 文字間の空白 - 初期値
     let audioCtx = null;
+    let activeOscillator = null; // リアルタイム制御用
 
     // 音量スライダー
     const volumeSlider = document.getElementById('volumeRange');
@@ -1087,6 +1098,7 @@
     const waveSelect = document.getElementById('waveType');
     const sendAudioToggle = document.getElementById('sendAudioToggle');
     const sendFlashToggle = document.getElementById('sendFlashToggle');
+    const sendTorchToggle = document.getElementById('sendTorchToggle');
 
     dotLengthSlider.addEventListener('input', (e) => {
         dotLengthMs = parseInt(e.target.value);
@@ -1108,18 +1120,82 @@
         const val = parseInt(e.target.value);
         const freq = Math.round(logScale(val, 2000000, 20, 20000));
         freqDisp.textContent = freq;
+        
+        // リアルタイム反映
+        if (activeOscillator && audioCtx) {
+            activeOscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        }
     });
 
     // --- 2. 送信機能 (Output) ---
     let isSending = false; // 送信中フラグ
+    let hasShownFlashWarning = false; // 点滅警告表示済みフラグ
+    let torchTrack = null; // スマホライト制御用トラック
+
+    // ライト初期化
+    async function initTorch() {
+        if (torchTrack) return true;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+            });
+            const track = stream.getVideoTracks()[0];
+            
+            // capabilitiesチェック (ブラウザによっては未実装の場合あり)
+            const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+            
+            // torchプロパティが存在しない、または使えない場合
+            // ※ PCなど非対応環境でもエラーにならないよう、一旦トラックは保持するが
+            //   制御時にエラーが出るだけにするか、ここで弾くか。
+            //   Android Chromeでは 'torch' in capabilities が true になる。
+            if (!('torch' in capabilities)) {
+                // 明らかに非対応なら閉じる
+                // track.stop();
+                // alert("この端末はライト制御に対応していない可能性があります。");
+                // return false;
+                
+                // ただし、getCapabilitiesが不完全なブラウザもあるため、
+                // とりあえず保持して applyConstraints でのエラーを許容する方針とする
+            }
+            
+            torchTrack = track;
+            return true;
+        } catch (e) {
+            console.error("Camera access failed:", e);
+            alert("カメラへのアクセスが拒否されたか、エラーが発生しました。\nスマホライト機能はオフになります。");
+            sendTorchToggle.checked = false;
+            return false;
+        }
+    }
+
+    // ライトON/OFF
+    async function toggleTorch(on) {
+        if (!torchTrack) return;
+        try {
+            await torchTrack.applyConstraints({
+                advanced: [{ torch: on }]
+            });
+        } catch (e) {
+            // 対応していない場合などはここでエラーになる（無視する）
+            // console.warn(e);
+        }
+    }
+    
+    // ライト解放
+    function releaseTorch() {
+        if (torchTrack) {
+            torchTrack.stop();
+            torchTrack = null;
+        }
+    }
 
     async function playTone(duration) {
-        let osc = null; // スコープ外で参照するため
+        // activeOscillator はグローバル変数を使用
 
         // 「音を鳴らす」がONなら音を準備
         if (sendAudioToggle.checked) {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            osc = audioCtx.createOscillator();
+            activeOscillator = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             
             const vol = parseInt(volumeSlider.value) / 100; 
@@ -1127,30 +1203,39 @@
             const freq = Math.round(logScale(parseInt(freqSlider.value), 2000000, 20, 20000));
             const type = waveSelect.value;
 
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            activeOscillator.type = type;
+            activeOscillator.frequency.setValueAtTime(freq, audioCtx.currentTime);
             gain.gain.setValueAtTime(vol, audioCtx.currentTime);
             
-            osc.connect(gain);
+            activeOscillator.connect(gain);
             gain.connect(audioCtx.destination);
             
-            osc.start();
+            activeOscillator.start();
         }
 
         // 「画面を光らせる」がONなら光らせる
         if (sendFlashToggle.checked) {
             document.body.classList.add('flashing');
         }
+        
+        // 「スマホライト」がONなら光らせる (非同期だが待たない)
+        if (sendTorchToggle.checked) {
+            toggleTorch(true);
+        }
 
         // 信号の長さに応じて待機 (音や光がOFFでも時間は経過する)
         await new Promise(r => setTimeout(r, duration));
 
         // 開始したものがあれば停止する
-        if (osc) {
-            osc.stop();
+        if (activeOscillator) {
+            activeOscillator.stop();
+            activeOscillator = null;
         }
         if (sendFlashToggle.checked) {
             document.body.classList.remove('flashing');
+        }
+        if (sendTorchToggle.checked) {
+            toggleTorch(false);
         }
     }
 
@@ -1171,6 +1256,22 @@
 
         let rawText = document.getElementById('inputText').value;
         if (!rawText) return;
+
+        // 初回点滅警告
+        if (sendFlashToggle.checked && !hasShownFlashWarning) {
+            const ok = confirm("※注意！　モールス信号にあわせて画面が点滅します。（「画面を光らせる」チェックボックスをオフにすると点滅を解除出来ます）");
+            if (!ok) return;
+            hasShownFlashWarning = true;
+        }
+        
+        // スマホライト初期化
+        if (sendTorchToggle.checked) {
+            const success = await initTorch();
+            if (!success) {
+                // 失敗したらチェックを外して続行するか、中断するか。
+                // ここではチェックを外して（initTorch内で実施済み）続行させる
+            }
+        }
 
         // --- 送信開始処理 ---
         isSending = true;
@@ -1258,6 +1359,9 @@
             
             // 点滅が残っていたら消す
             document.body.classList.remove('flashing');
+            // ライト消灯・解放
+            await toggleTorch(false);
+            releaseTorch();
             
             btnSend.textContent = '送信';
             btnSend.style.backgroundColor = "";
@@ -2286,6 +2390,7 @@
             mode: document.querySelector('input[name="mode"]:checked').value,
             sendAudio: document.getElementById('sendAudioToggle').checked,
             sendFlash: document.getElementById('sendFlashToggle').checked,
+            sendTorch: document.getElementById('sendTorchToggle').checked,
             volume: volumeSlider.value,
             dotLength: dotLengthSlider.value,
             dashLength: dashLengthSlider.value,
@@ -2360,6 +2465,7 @@
             // パラメータ復元
             applyVal(document.getElementById('sendAudioToggle'), s.sendAudio, 'change');
             applyVal(document.getElementById('sendFlashToggle'), s.sendFlash, 'change');
+            applyVal(document.getElementById('sendTorchToggle'), s.sendTorch, 'change');
             
             applyVal(volumeSlider, s.volume);
             applyVal(dotLengthSlider, s.dotLength);
@@ -2575,6 +2681,7 @@
         ...document.querySelectorAll('input[name="mode"]'),
         document.getElementById('sendAudioToggle'),
         document.getElementById('sendFlashToggle'),
+        document.getElementById('sendTorchToggle'),
         volumeSlider, dotLengthSlider, dashLengthSlider, signalIntervalSlider, charSpaceSlider, freqSlider, waveSelect,
         autoThreshToggle, thresholdSlider, dotSlider, charGapSlider, inputVolumeRange, smoothingSlider,
         filterToggle, filterMinRange, filterMaxRange, filterQRange, themeSelect,
