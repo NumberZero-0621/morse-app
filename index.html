@@ -525,6 +525,15 @@
                         <option value="sawtooth">ノコギリ波 (Sawtooth) - 鋭い音</option>
                         <option value="triangle">三角波 (Triangle) - ゲーム音風</option>
                     </select>
+                    
+                    <br><br>
+                    
+                    <label>スマホライト遅延補正 (ms)</label>
+                    <div style="display: flex; align-items: center;">
+                        <input type="range" id="torchLatencyRange" min="0" max="1000" step="10" value="300" style="flex: 1;">
+                        <span id="torchLatencyVal" style="width: 40px; text-align: right;">300</span>
+                    </div>
+                    <small style="color: var(--text-dim);">ライトの点灯が遅れる場合、音と画面を遅らせてタイミングを合わせます。</small>
 
                 </div>
             </details>
@@ -1081,6 +1090,7 @@
     let dashLengthMs = 240;
     let signalIntervalMs = 80;
     let charSpacingMs = 300; // 文字間の空白 - 初期値
+    let torchLatencyMs = 300; // ライト遅延補正
     let audioCtx = null;
     let activeOscillator = null; // リアルタイム制御用
 
@@ -1103,6 +1113,9 @@
     const freqSlider = document.getElementById('freqRange');
     const freqDisp = document.getElementById('freqVal');
     const waveSelect = document.getElementById('waveType');
+    const torchLatencySlider = document.getElementById('torchLatencyRange');
+    const torchLatencyDisp = document.getElementById('torchLatencyVal');
+    
     const sendAudioToggle = document.getElementById('sendAudioToggle');
     const sendFlashToggle = document.getElementById('sendFlashToggle');
     const sendTorchToggle = document.getElementById('sendTorchToggle');
@@ -1122,6 +1135,10 @@
     charSpaceSlider.addEventListener('input', (e) => {
         charSpacingMs = parseInt(e.target.value);
         charSpaceDisp.textContent = charSpacingMs;
+    });
+    torchLatencySlider.addEventListener('input', (e) => {
+        torchLatencyMs = parseInt(e.target.value);
+        torchLatencyDisp.textContent = torchLatencyMs;
     });
     freqSlider.addEventListener('input', (e) => {
         const val = parseInt(e.target.value);
@@ -1198,6 +1215,14 @@
 
     async function playTone(duration) {
         // activeOscillator はグローバル変数を使用
+        
+        // 「スマホライト」がONなら先に命令を送り、補正時間だけ待つ (先行発火)
+        if (sendTorchToggle.checked) {
+            toggleTorch(true);
+            if (torchLatencyMs > 0) {
+                await sleep(torchLatencyMs);
+            }
+        }
 
         // 「音を鳴らす」がONなら音を準備
         if (sendAudioToggle.checked) {
@@ -1224,11 +1249,6 @@
         if (sendFlashToggle.checked) {
             document.body.classList.add('flashing');
         }
-        
-        // 「スマホライト」がONなら光らせる (非同期だが待たない)
-        if (sendTorchToggle.checked) {
-            toggleTorch(true);
-        }
 
         // 信号の長さに応じて待機 (音や光がOFFでも時間は経過する)
         await new Promise(r => setTimeout(r, duration));
@@ -1241,8 +1261,12 @@
         if (sendFlashToggle.checked) {
             document.body.classList.remove('flashing');
         }
+        
+        // ライト消灯
         if (sendTorchToggle.checked) {
             toggleTorch(false);
+            // 消灯の遅延はここでは待たない（次の信号までのインターバルで吸収されることを期待）
+            // もしここでも待つと、全体のテンポが遅くなる可能性があるため。
         }
     }
 
@@ -2403,6 +2427,7 @@
             dashLength: dashLengthSlider.value,
             signalInterval: signalIntervalSlider.value,
             charSpace: charSpaceSlider.value,
+            torchLatency: torchLatencySlider.value,
             // Hzを保存
             freq: Math.round(logScale(parseInt(freqSlider.value), 2000000, 20, 20000)),
             waveType: waveSelect.value,
@@ -2479,6 +2504,7 @@
             applyVal(dashLengthSlider, s.dashLength);
             applyVal(signalIntervalSlider, s.signalInterval);
             applyVal(charSpaceSlider, s.charSpace);
+            applyVal(torchLatencySlider, s.torchLatency);
             
             // Hz -> スライダー値
             if (s.freq !== undefined) {
@@ -2622,6 +2648,7 @@
     makeEditable('dashLengthVal', 'dashLengthRange', { min: 40, max: 1500 });
     makeEditable('signalIntervalVal', 'signalIntervalRange', { min: 20, max: 500 });
     makeEditable('charSpaceVal', 'charSpaceRange', { min: 100, max: 2000 });
+    makeEditable('torchLatencyVal', 'torchLatencyRange', { min: 0, max: 1000 });
     makeEditable('freqVal', 'freqRange', { 
         min: 20, max: 20000, isLog: true,
         toSlider: v => Math.round(inverseLogScale(v, 2000000, 20, 20000))
@@ -2690,6 +2717,7 @@
         document.getElementById('sendFlashToggle'),
         document.getElementById('sendTorchToggle'),
         volumeSlider, dotLengthSlider, dashLengthSlider, signalIntervalSlider, charSpaceSlider, freqSlider, waveSelect,
+        torchLatencySlider, // 新規追加
         autoThreshToggle, thresholdSlider, dotSlider, charGapSlider, inputVolumeRange, smoothingSlider,
         filterToggle, filterMinRange, filterMaxRange, filterQRange, themeSelect,
         noiseCancelToggle, noiseCancelStrengthRange,
