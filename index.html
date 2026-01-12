@@ -534,29 +534,8 @@
     <details id="detailsMainRecv" class="main-panel">
         <summary>受信 (Reception)</summary>
         <div class="panel-content" style="text-align: center;">
-            <div style="display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 10px;">
-                <button id="btnListen">受信開始（マイクON）</button>
-                <button id="btnImport">読み込み</button>
-                <input type="file" id="fileInput" accept="audio/*" style="display: none;">
-            </div>
             
-            <!-- 読み込み用プレイヤー (初期非表示) -->
-            <div id="audioPlayerContainer" style="display:none; width: 100%; margin-bottom: 10px; background: var(--bg-panel-dark); padding: 5px; border: 1px solid var(--border-color); border-radius: 5px;">
-                <div style="text-align: center; color: var(--text-sub); font-size: 0.8rem; margin-bottom: 2px;">ファイル再生: <span id="fileNameDisplay" style="color: var(--text-main);"></span></div>
-                <audio id="audioPlayer" controls style="width: 100%; height: 30px;"></audio>
-            </div>
-
-            <div class="controls">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                    <label>マイク感度調整（しきい値）</label>
-                    <label style="font-size: 1rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                        <input type="checkbox" id="autoThresholdToggle" style="width: 18px; height: 18px; transform: scale(1.5); cursor: pointer;"> 自動設定
-                    </label>
-                </div>
-                <input title="thresholdRange" type="range" id="thresholdRange" min="0" max="100" value="40">
-                <span id="thresholdVal">40</span>
-            </div>
-
+            <!-- 1. モニターエリア (ビジュアライザー & 受信テキスト) -->
             <canvas id="visualizer"></canvas>
             <div style="position: relative; width: 100%; height: 20px; color: var(--text-sub); font-size: 0.75rem; margin-top: 2px; margin-bottom: 5px;">
                 <span style="position: absolute; left: 0%;">20Hz</span>
@@ -574,6 +553,34 @@
             <div id="decodedText">Waiting...</div>
             <div id="debugSignal" style="text-align: center;"></div>
 
+            <br>
+
+            <!-- 2. 操作ボタン類 -->
+            <div style="display: flex; gap: 10px; align-items: center; justify-content: center; margin-bottom: 10px;">
+                <button id="btnListen">受信開始（マイクON）</button>
+                <button id="btnImport">読み込み</button>
+                <input type="file" id="fileInput" accept="audio/*" style="display: none;">
+            </div>
+            
+            <!-- 読み込み用プレイヤー (初期非表示) -->
+            <div id="audioPlayerContainer" style="display:none; width: 100%; margin-bottom: 10px; background: var(--bg-panel-dark); padding: 5px; border: 1px solid var(--border-color); border-radius: 5px;">
+                <div style="text-align: center; color: var(--text-sub); font-size: 0.8rem; margin-bottom: 2px;">ファイル再生: <span id="fileNameDisplay" style="color: var(--text-main);"></span></div>
+                <audio id="audioPlayer" controls style="width: 100%; height: 30px;"></audio>
+            </div>
+
+            <!-- 3. 感度調整 -->
+            <div class="controls">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <label>マイク感度調整（しきい値）</label>
+                    <label style="font-size: 1rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="autoThresholdToggle" style="width: 18px; height: 18px; transform: scale(1.5); cursor: pointer;"> 自動設定
+                    </label>
+                </div>
+                <input title="thresholdRange" type="range" id="thresholdRange" min="0" max="100" value="40">
+                <span id="thresholdVal">40</span>
+            </div>
+
+            <!-- 4. 詳細設定 -->
             <details id="detailsRecv" style="margin-top: 20px; text-align: left; background: var(--bg-panel-dark); padding: 10px; border-radius: 5px;">
                 <summary style="cursor: pointer; outline: none; color: var(--text-sub);">詳細設定 (認識パラメータ)</summary>
                 <div style="margin-top: 10px; padding-left: 10px;">
